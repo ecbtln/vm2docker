@@ -22,6 +22,7 @@ Layout of expected steps for conversion
     - Or we could just prompt the user which one of the processes should be ported over
     - 1 container per process
     - Either ask user for port #'s, or get them from the running VM using netstat
+    - See LINKS.md for some links containing a discussion of running multiple processes vs. 1 process in a container
 4. Some interesting exceptions to think about
     - SSH daemon? is it needed? probably not, but depends on if it's also used for X11 or something
     - UI/desktop? this gets less useful with docker, but might be able to still be used with X11
