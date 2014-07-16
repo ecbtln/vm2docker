@@ -1,0 +1,24 @@
+Layout of expected steps for conversion
+
+1. Determine linux release + verify kernel is compatible
+2. Clone filesystem
+    - For now, we will just clone the entire filesystem and tar it and import in using docker import
+    - In the future, we will want to minimize image size and take advantage of layering
+        i. Match OS with a given base image
+        ii. Generate commands to reinstall any packages that are missing:
+            - i.e. http://kracekumar.com/post/70198562577/autogenerate-dockerfile-from-ubuntu-image
+        iii. Add the rest of the files using the ADD directive and shell scripts to move to the appropriate location
+3. Determine init.d processes
+    - This may require accessing the running VM over ssh
+    - Or we could just prompt the user which one of the processes should be ported over
+    - 1 container per process
+    - Either ask user for port #'s, or get them from the running VM using netstat
+4. Some interesting exceptions to think about
+    - SSH daemon? is it needed? probably not, but depends on if it's also used for X11 or something
+    - UI/desktop? this gets less useful with docker, but might be able to still be used with X11
+    - Environmental variables, linking containers, and shared volumes
+    - Determine if privileged mode is needed. Generally, some VMs might be doing things that containers don't support
+5. Potential future abstractions
+    - support VDI and VMDK filesystems
+    - support for both kubernetes and fleet output files
+    - Also read memory and processor allocation for VM, and reassign to container
