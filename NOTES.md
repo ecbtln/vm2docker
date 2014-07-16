@@ -5,8 +5,17 @@ Layout of expected steps for conversion
     - For now, we will just clone the entire filesystem and tar it and import in using docker import
     - In the future, we will want to minimize image size and take advantage of layering
         i. Match OS with a given base image
+            - It looks like only Ubuntu and CentOS are available on the public docker registry, so we will likely
+            have to use a tool like [debootstrap](https://wiki.debian.org/Debootstrap) in conjunction with the 
+            available contrib scripts ([here](https://github.com/dotcloud/docker/tree/master/contrib)).
+            - This process would likely be used in conjunction with a private registry see:
+                - [Building private registry](http://blog.docker.com/2013/07/how-to-use-your-own-registry/)
+                - [Quay.io](https://quay.io)
+            - Also see here for a [trusted](http://blog.docker.com/2013/11/introducing-trusted-builds/) build of 
+            [ubuntu desktop](http://dockerfile.github.io/#/ubuntu-desktop) and
+            [ubuntu](http://dockerfile.github.io/#/ubuntu) with some more stuff added.
         ii. Generate commands to reinstall any packages that are missing:
-            - i.e. http://kracekumar.com/post/70198562577/autogenerate-dockerfile-from-ubuntu-image
+            - i.e. [Ubuntu apt-get autogeneration](http://kracekumar.com/post/70198562577/autogenerate-dockerfile-from-ubuntu-image)
         iii. Add the rest of the files using the ADD directive and shell scripts to move to the appropriate location
 3. Determine init.d processes
     - This may require accessing the running VM over ssh
