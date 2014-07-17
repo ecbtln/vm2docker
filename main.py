@@ -16,7 +16,7 @@ if DOCKER_HOST is not None and len(DOCKER_HOST.strip()) == 0:
 
 # Step 1 - mount VDI on OS
 
-path_to_root = sys.argv[1]
+path_to_root = os.path.abspath(sys.argv[1])
 
 cmd = 'VBoxManage clonehd %(path)s %(path)s.img --format %(fmt)s' % {'path': path_to_root, 'fmt': 'raw'}
 
@@ -148,5 +148,12 @@ tf.extractall(extraction_path)
 # remove the tar
 os.remove(base_tar_path)
 
-sys.stdout = sys.stderr
-filecmp.dircmp(path_to_root, extraction_path).report_full_closure()
+modified_dir_name = 'modded'
+modified_directory = os.path.join(temp_dir, modified_dir_name)
+subprocess.check_output('sudo rsync -axHAX --compare-dest=%s %s %s' % (extraction_path, path_to_root, modified_directory))
+
+
+# http://stackoverflow.com/questions/19771113/how-to-recursively-diff-without-transversing-filesystems/19771489?noredirect=1#comment38508861_19771489
+# http://stackoverflow.com/questions/9102313/rsync-to-get-a-list-of-only-file-names
+# http://stackoverflow.com/questions/20929863/within-lxc-docker-container-what-happens-if-apt-get-upgrade-includes-kernel-up
+# http://serverfault.com/questions/141773/what-is-archive-mode-in-rsync

@@ -23,8 +23,17 @@ class FileSystemDiffTool(object):
 
 # Tools to check out:
 
+
+# instmon, maybe slacktrack
+#rdiff may not be able to make the diff and apply it separately, which is what i need
+# but i like this description:
+# preserves subdirectories, hard links, dev files, permissions, uid/gid ownership, modification times, extended attributes, acls, and resource forks
+
+# keyword: CREATE PATCH
+
+
 # rsync
-# beyond compare: http://www.scootersoftware.com
+# beyond compare: http://www.scootersoftware.com - ui only
 # rdiff: http://rdiff-backup.nongnu.org
 # dirdiff: http://freecode.com/projects/dirdiff/
 
@@ -49,9 +58,11 @@ class FileSystemDiffTool(object):
 #
 # slacktrack
 # http://freecode.com/projects/slacktrack
+#http://www.slackware.com/~mozes/
 #
 #
 # strace Analyzer
 # http://en.community.dell.com/techcenter/high-performance-computing/w/wiki/2264.aspx
 # http://preview.tinyurl.com/7c7hf79
 #
+

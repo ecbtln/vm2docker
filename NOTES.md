@@ -16,7 +16,12 @@ Layout of expected steps for conversion
             [ubuntu](http://dockerfile.github.io/#/ubuntu) with some more stuff added.
         - Generate commands to reinstall any packages that are missing:
             - i.e. [Ubuntu apt-get autogeneration](http://kracekumar.com/post/70198562577/autogenerate-dockerfile-from-ubuntu-image)
-        - Add the rest of the files using the ADD directive and shell scripts to move to the appropriate location
+        - Add the rest of the files using the ADD directive and tar to unpackage the diff'ed filesystem
+        - Delete any files that need to be deleted, presumably using an ADD directive and then a RUN command
+        - Further optimizations
+            - Remove kernel drivers in /lib/modules
+            - Optionally remove caches
+                - In Ubuntu, these are in /var/cache/apt/pkgcache.bin and /var/cache/apt/srcpkgcache.bin
 3. Determine init.d processes
     - This may require accessing the running VM over ssh
     - Or we could just prompt the user which one of the processes should be ported over
