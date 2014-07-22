@@ -7,7 +7,8 @@ import tempfile
 import tarfile
 import shutil
 import json
-
+from utils import recursive_size
+import re
 
 class LinuxInfoParser(object):
     def __init__(self, path_to_root):
@@ -34,18 +35,20 @@ class LinuxInfoParser(object):
 
 
 class BaseImageGenerator(object):
-    def __init__(self, path_to_root, dclient):
+    def __init__(self, vm_root, dclient):
         self.docker_client = dclient
-        self.path_to_root = os.path.join(os.path.abspath(path_to_root), '') # stupid hack to get the trailing slash
+        self.vm_root = os.path.join(os.path.abspath(vm_root), '')  # stupid hack to get the trailing slash
         self.temp_dir = tempfile.mkdtemp()
         self.modified_directory = os.path.join(self.temp_dir, 'modded')
+        base_image_dir = 'root_fs'
+        self.base_image_root = os.path.join(self.temp_dir, base_image_dir, '')
         self.deleted_list = os.path.join(self.temp_dir, 'deleted.txt')
         os.makedirs(self.modified_directory)
         self.generate_linux_info()
-        logging.debug('Detected OS: %s' % self.linux_info['PRETTY_NAME'])
+        logging.debug('Detected OS: %s' % self.linux_info.get('PRETTY_NAME', self.linux_info.get('DISTRIB_DESCRIPTION')))
 
     def generate_linux_info(self):
-        self.linux_info = LinuxInfoParser(self.path_to_root).generate_os_info()
+        self.linux_info = LinuxInfoParser(self.vm_root).generate_os_info()
 
     @staticmethod
     def transform_tag(repo, tag):
@@ -87,27 +90,23 @@ class BaseImageGenerator(object):
     def extract_base_image_tar(self, base_tar_path):
         tf = tarfile.open(base_tar_path, 'r')
 
-        extraction_dir = 'root_fs'
-        extraction_path = os.path.join(self.temp_dir, extraction_dir, '')
-        os.makedirs(extraction_path)
+        os.makedirs(self.base_image_root)
 
-        logging.debug('Extracting base image to %s' % extraction_path)
-        tf.extractall(extraction_path)
+        logging.debug('Extracting base image to %s' % self.base_image_root)
+        tf.extractall(self.base_image_root)
 
         # remove the tar
         os.remove(base_tar_path)
 
-        return extraction_path
-
     def generate_diff(self, base_image_root):
-        cmd = 'sudo rsync -axHAX --compare-dest=%s %s %s' % (base_image_root, self.path_to_root, self.modified_directory)
+        cmd = 'sudo rsync -axHAX --compare-dest=%s %s %s' % (base_image_root, self.vm_root, self.modified_directory)
         logging.debug(cmd)
         subprocess.check_output(cmd, shell=True)
 
-    def _generate_deletions_and_modified(self, base_image_root):
+    def _generate_deletions_and_modified(self):
         deleted_dir = os.path.join(self.temp_dir, 'deleted')
         os.makedirs(deleted_dir)
-        cmd = 'sudo rsync -axHAX --compare-dest=%s %s %s' % (self.path_to_root, base_image_root, deleted_dir)
+        cmd = 'sudo rsync -axHAX --compare-dest=%s %s %s' % (self.vm_root, self.base_image_root, deleted_dir)
         logging.debug(cmd)
         subprocess.check_output(cmd, shell=True)
         return self._list_all_files_and_folders(deleted_dir)
@@ -126,40 +125,44 @@ class BaseImageGenerator(object):
         system_list.reverse()
         return system_list
 
-    def generate_deletions(self, base_image_root):
-        deletions_and_modifications = self._generate_deletions_and_modified(base_image_root)
+    def generate_deletions(self):
+        deletions_and_modifications = self._generate_deletions_and_modified()
         deletions = list()
         for candidate in deletions_and_modifications:
             to_check = os.path.join(self.modified_directory, candidate)
             if not os.path.lexists(to_check):
                 #logging.debug('%s: file does not exist' % to_check)
                 deletions.append(candidate)
-        # TODO: for some reason this isn't working
         logging.debug('%d modifications and deletions, %d deletions' % (len(deletions_and_modifications), len(deletions)))
         return deletions
 
-    def generate(self):
-        repo = self.linux_info['ID']
-        tag = self.linux_info['VERSION_ID']
+    def generate(self, vm_tag):
+
+        repo = self.linux_info.get('ID', self.linux_info.get('DISTRIB_ID')).lower()
+
+
+        tag = self.linux_info.get('VERSION_ID', self.linux_info.get('DISTRIB_RELEASE'))
         tag = self.transform_tag(repo, tag)
         container_id = self.find_base_image(repo, tag)
         assert container_id is not None
         base_tar_path = self.export_base_image_tar(container_id)
-        base_image_root = self.extract_base_image_tar(base_tar_path)
+        self.extract_base_image_tar(base_tar_path)
         logging.debug('Generating filesystem diff...')
-        self.generate_diff(base_image_root)
-        exclude = {'.dockerinit'}
+        self.generate_diff(self.base_image_root)
+        exclude = {'\.dockerinit', 'dev.*'}
+        options = '|'.join(exclude)
+        regexp = re.compile('^(%s)$' % options)
         with open(self.deleted_list, 'w') as text_file:
             # prepend a '/' to every path, we want these to be absolute paths on the new host
-            text_file.write('\n'.join('/' + x for x in self.generate_deletions(base_image_root) if x not in exclude))
+            text_file.write('\n'.join('/' + x for x in self.generate_deletions() if not regexp.match(x)))
         path = self.create_docker_image(repo, tag)
         logging.debug('Docker build is now located at: %s' % path)
-
+        self.generate_statistics()
         # now build it
-        #self.build_and_push_to_registry(path, 'ubuntu_modified')
+        #self.build_and_push_to_registry(path, vm_tag)
         # now push it to the registry (local for now)
 
-    def create_docker_image(self, repo, tag):
+    def create_docker_image(self, from_repo, from_tag):
         temp_dir = tempfile.mkdtemp()
 
         # now tar up the modifications and into the directory
@@ -174,7 +177,7 @@ class BaseImageGenerator(object):
 ADD %(changes)s /
 ADD %(deleted)s /src/
 RUN xargs -d '\\n' -a /src/%(deleted)s rm -r
-RUN rm -rf /src/%(deleted)s""" % {'repo': repo, 'tag': tag, 'changes': changes, 'deleted': deleted}
+RUN rm -rf /src/%(deleted)s""" % {'repo': from_repo, 'tag': from_tag, 'changes': changes, 'deleted': deleted}
 
         with open(os.path.join(temp_dir, 'Dockerfile'), 'w') as dockerfile:
             dockerfile.write(df)
@@ -182,11 +185,16 @@ RUN rm -rf /src/%(deleted)s""" % {'repo': repo, 'tag': tag, 'changes': changes, 
         return temp_dir
 
     def build_and_push_to_registry(self, docker_dir, tag):
-        for x in self.docker_client.build(path=docker_dir, tag=tag):
+        for x in self.docker_client.build(path=docker_dir, tag='VM:%s' % tag):
             y = json.loads(x)
             logging.debug(y['stream'])
-
 
     def clean_up(self):
         # delete the temporary directory
         shutil.rmtree(self.temp_dir)
+
+    def generate_statistics(self):
+        vm_size = recursive_size(self.vm_root) / (1024*1024)
+        base_image_size = recursive_size(self.base_image_root) / (1024*1024)
+        diff_size = recursive_size(self.modified_directory) / (1024*1024)
+        logging.debug('VM size: %sMB, Base image size: %sMB, Diff: %sMB', vm_size, base_image_size, diff_size)

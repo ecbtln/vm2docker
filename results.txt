@@ -1,0 +1,16 @@
+Ubuntu 10.04.4 LTS
+VM size: 713MB, Base image size: 174MB, Diff: 652MB
+
+Ubuntu 12.04.4 LTS
+VM size: 895MB, Base image size: 79MB, Diff: 846MB
+
+Ubuntu 12.10
+VM size: 714MB, Base image size: 144MB, Diff: 638MB
+
+Ubuntu 13.04
+VM size: 723MB, Base image size: 141MB, Diff: 650MB
+
+Ubuntu 13.10
+VM size: 1006MB, Base image size: 155MB, Diff: 932MB
+
+

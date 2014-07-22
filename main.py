@@ -12,10 +12,15 @@ if __name__ == '__main__':
     if DOCKER_HOST is not None and len(DOCKER_HOST.strip()) == 0:
         DOCKER_HOST = None
     client = docker.Client(base_url=DOCKER_HOST)
-    path_to_root = os.path.abspath(sys.argv[1])
-    image_gen = BaseImageGenerator(path_to_root, client)
-    docker_dir = image_gen.generate()
+    vm_root = os.path.abspath(sys.argv[1])
+    tag_name = sys.argv[2]
+
+    # TODO: use a context manager so things automatically get cleaned up
+    image_gen = BaseImageGenerator(vm_root, client)
+    docker_dir = image_gen.generate(tag_name)
     image_gen.clean_up()
+
+
 
 # http://stackoverflow.com/questions/19771113/how-to-recursively-diff-without-transversing-filesystems/19771489?noredirect=1#comment38508861_19771489
 # http://stackoverflow.com/questions/9102313/rsync-to-get-a-list-of-only-file-names
