@@ -9,6 +9,7 @@ import shutil
 import json
 from utils import recursive_size
 import re
+from packagemanager import MultiRootPackageManager
 
 class LinuxInfoParser(object):
     def __init__(self, path_to_root):
@@ -35,7 +36,7 @@ class LinuxInfoParser(object):
 
 
 class BaseImageGenerator(object):
-    def __init__(self, vm_root, dclient):
+    def __init__(self, vm_root, dclient, process_packages=True):
         self.docker_client = dclient
         self.vm_root = os.path.join(os.path.abspath(vm_root), '')  # stupid hack to get the trailing slash
         self.temp_dir = tempfile.mkdtemp()
@@ -45,6 +46,7 @@ class BaseImageGenerator(object):
         self.deleted_list = os.path.join(self.temp_dir, 'deleted.txt')
         os.makedirs(self.modified_directory)
         self.generate_linux_info()
+        self.process_packages = process_packages
         logging.debug('Detected OS: %s' % self.linux_info.get('PRETTY_NAME', self.linux_info.get('DISTRIB_DESCRIPTION')))
 
     def generate_linux_info(self):
@@ -147,6 +149,16 @@ class BaseImageGenerator(object):
         assert container_id is not None
         base_tar_path = self.export_base_image_tar(container_id)
         self.extract_base_image_tar(base_tar_path)
+
+        cmds = []
+        if self.process_packages:
+            logging.debug('Generating package manager commands...')
+            m = MultiRootPackageManager(self.base_image_root, self.vm_root, repo)
+            cmds.extend(m.prepare_vm())
+            m.clean_up()
+
+
+
         logging.debug('Generating filesystem diff...')
         self.generate_diff(self.base_image_root)
         exclude = {'\.dockerinit', 'dev.*'}
@@ -155,14 +167,14 @@ class BaseImageGenerator(object):
         with open(self.deleted_list, 'w') as text_file:
             # prepend a '/' to every path, we want these to be absolute paths on the new host
             text_file.write('\n'.join('/' + x for x in self.generate_deletions() if not regexp.match(x)))
-        path = self.create_docker_image(repo, tag)
+        path = self.create_docker_image(repo, tag, cmds=cmds)
         logging.debug('Docker build is now located at: %s' % path)
         self.generate_statistics()
         # now build it
         #self.build_and_push_to_registry(path, vm_tag)
         # now push it to the registry (local for now)
 
-    def create_docker_image(self, from_repo, from_tag):
+    def create_docker_image(self, from_repo, from_tag, cmds=None):
         temp_dir = tempfile.mkdtemp()
 
         # now tar up the modifications and into the directory
@@ -178,6 +190,12 @@ ADD %(changes)s /
 ADD %(deleted)s /src/
 RUN xargs -d '\\n' -a /src/%(deleted)s rm -r
 RUN rm -rf /src/%(deleted)s""" % {'repo': from_repo, 'tag': from_tag, 'changes': changes, 'deleted': deleted}
+        if cmds is not None and len(cmds) > 0:
+            rest = '\n'.join('RUN %s' % cmd for cmd in cmds)
+        else:
+            rest = ''
+
+        df = "%s\n%s" % (df, rest)
 
         with open(os.path.join(temp_dir, 'Dockerfile'), 'w') as dockerfile:
             dockerfile.write(df)

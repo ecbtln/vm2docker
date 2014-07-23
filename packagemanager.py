@@ -3,6 +3,8 @@ import subprocess
 import abc
 from multiprocessing import Process, Queue
 import os
+import tempfile
+import logging
 
 
 class ChrootManager(object):
@@ -33,23 +35,32 @@ class ChrootManager(object):
 
 
 class PackageManager(object):
-    #__metaclass__ = abc.ABCMeta
+    __metaclass__ = abc.ABCMeta
 
     def __init__(self, root):
         self.root = root
+        self.to_clean = []
 
-    def _exec_in_jail(self, cmd):
-        f = lambda: subprocess.check_output(cmd, shell=True)
+    def _exec_in_jail(self, cmds):
+        if len(cmds) == 0:
+            return
+        f = lambda: [subprocess.check_output(cmd, shell=True) for cmd in cmds]
         return ChrootManager(self.root).call(f)
 
     def get_installed(self):
         return ChrootManager(self.root).call(self._get_installed)
 
     def install(self, packages):
-        return self._exec_in_jail(self._install_cmd(packages))
+        return self._exec_in_jail(self._install_cmds(packages))
 
     def uninstall(self, packages):
-        return self._exec_in_jail(self._uninstall_cmd(packages))
+        return self._exec_in_jail(self._uninstall_cmds(packages))
+
+    @staticmethod
+    def convert_install_to_deinstall(pkg):
+        spl = pkg.split()
+        spl[1] = 'deinstall'
+        return ' '.join(spl)
 
     @abc.abstractmethod
     def _get_installed(self):
@@ -57,11 +68,11 @@ class PackageManager(object):
 
     # These two abstract methods should be subclassed and return a command to do the following
     @abc.abstractmethod
-    def _install_cmd(self, packages):
+    def _install_cmds(self, packages):
         pass
 
     @abc.abstractmethod
-    def _uninstall_cmd(self, packages):
+    def _uninstall_cmds(self, packages):
         pass
 
     @staticmethod
@@ -69,12 +80,38 @@ class PackageManager(object):
         if system == 'ubuntu':
             return DebianPackageManager
 
+    def clean_up(self):
+        for f in self.to_clean:
+            os.remove(f)
+
 
 class DebianPackageManager(PackageManager):
     """
     For debian-like systems aka Ubuntu
     http://kvz.io/blog/2007/08/03/restore-packages-using-dselectupgrade/
     """
+    def _get_installed(self):
+        return [' '.join(x.split()) for x in subprocess.check_output('dpkg --get-selections | grep -v deinstall', shell=True).splitlines()]
+
+    def _install_cmds(self, packages):
+        if len(packages) == 0:
+            return []
+        return self._add_or_remove(packages)
+
+    def _add_or_remove(self, package_commands):
+        fd, filepath = tempfile.mkstemp(suffix='.txt')
+        self.to_clean.append(filepath)
+        cmd0 = 'echo -e "%s" > %s' % ("\\n".join(package_commands), filepath)
+        cmd1 = 'dpkg --set-selections < %s' % filepath
+        cmd2 = 'apt-get -y update'
+        cmd3 = 'apt-get dselect-upgrade'
+        return [cmd0, cmd1, cmd2, cmd3]
+
+    def _uninstall_cmds(self, packages):
+        if len(packages) == 0:
+            return []
+        packages = (self.convert_install_to_deinstall(pkg) for pkg in packages)
+        return self._add_or_remove(packages)
 
 
 class MultiRootPackageManager(object):
@@ -89,14 +126,21 @@ class MultiRootPackageManager(object):
 
         to_install = base_installed - vm_installed
         to_uninstall = vm_installed - base_installed
-
+        logging.debug('%d packages to install on the docker image' % len(to_uninstall))
+        logging.debug('%d packages to uninstall on the docker image' % len(to_install))
 
         # step 1. uninstall packages that are on VM but not on base image
-        self.vm.uninstall(to_uninstall)
+        #self.vm.uninstall(to_uninstall)
 
         # step 2. install packages that are on base image but not on VM
-        self.vm.install(to_install)
+        #self.vm.install(to_install)
 
         # step 3. return commands to undo the effects
-        return (self.vm._uninstall_cmd(to_install), self.vm._install_cmd(to_uninstall))
+        cmds = self.vm._uninstall_cmds(to_install)
+        cmds.extend(self.vm._install_cmds(to_uninstall))
+        return cmds
+
+    def clean_up(self):
+        self.base_image.clean_up()
+        self.vm.clean_up()
 

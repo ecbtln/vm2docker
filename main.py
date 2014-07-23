@@ -3,8 +3,15 @@ import docker
 import os
 from filesystem import BaseImageGenerator
 import logging
+import argparse
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='An automated command-line tool to convert virtual machines to layered docker images')
+    parser.add_argument('vm_root', help='The path to the root of the virtual machine filesystem')
+    parser.add_argument('--tag', default='my-vm', type=str, help='The tag to give the VM in docker')
+    parser.add_argument('--process_packages', default=True, type=bool, help='Whether or not the package manager should be used to further minimize the size of the diff')
+    args = parser.parse_args()
+
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format='%(message)s')
     logging.debug('Starting conversion...')
     assert os.geteuid() == 0
@@ -12,11 +19,12 @@ if __name__ == '__main__':
     if DOCKER_HOST is not None and len(DOCKER_HOST.strip()) == 0:
         DOCKER_HOST = None
     client = docker.Client(base_url=DOCKER_HOST)
-    vm_root = os.path.abspath(sys.argv[1])
-    tag_name = sys.argv[2]
+    vm_root = os.path.abspath(args.vm_root)
+    tag_name = args.tag
+
 
     # TODO: use a context manager so things automatically get cleaned up
-    image_gen = BaseImageGenerator(vm_root, client)
+    image_gen = BaseImageGenerator(vm_root, client, process_packages=args.process_packages)
     docker_dir = image_gen.generate(tag_name)
     image_gen.clean_up()
 
