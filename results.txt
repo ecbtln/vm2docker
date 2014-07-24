@@ -13,4 +13,7 @@ VM size: 723MB, Base image size: 141MB, Diff: 650MB
 Ubuntu 13.10
 VM size: 1006MB, Base image size: 155MB, Diff: 932MB
 
+Ubuntu 14.04
+VM size: 1143MB, Base image size: 171MB, Diff: 1020MB
+
 

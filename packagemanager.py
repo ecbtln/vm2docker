@@ -104,7 +104,7 @@ class DebianPackageManager(PackageManager):
         cmd0 = 'echo -e "%s" > %s' % ("\\n".join(package_commands), filepath)
         cmd1 = 'dpkg --set-selections < %s' % filepath
         cmd2 = 'apt-get -y update'
-        cmd3 = 'apt-get dselect-upgrade'
+        cmd3 = 'apt-get -y dselect-upgrade'
         return [cmd0, cmd1, cmd2, cmd3]
 
     def _uninstall_cmds(self, packages):

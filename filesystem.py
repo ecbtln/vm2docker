@@ -11,6 +11,7 @@ from utils import recursive_size
 import re
 from packagemanager import MultiRootPackageManager
 
+
 class LinuxInfoParser(object):
     def __init__(self, path_to_root):
         self.path_to_root = path_to_root
@@ -84,7 +85,7 @@ class BaseImageGenerator(object):
         base_tar = 'base_linux.tar'
         base_tar_path = os.path.join(self.temp_dir, base_tar)
         logging.debug('Writing base image to %s' % base_tar_path)
-        subprocess.check_output('sudo docker export %s > %s' % (container_id, base_tar_path), shell=True)
+        subprocess.check_output('docker export %s > %s' % (container_id, base_tar_path), shell=True)
 
         assert tarfile.is_tarfile(base_tar_path)
         return base_tar_path
@@ -101,14 +102,14 @@ class BaseImageGenerator(object):
         os.remove(base_tar_path)
 
     def generate_diff(self, base_image_root):
-        cmd = 'sudo rsync -axHAX --compare-dest=%s %s %s' % (base_image_root, self.vm_root, self.modified_directory)
+        cmd = 'rsync -axHAX --compare-dest=%s %s %s' % (base_image_root, self.vm_root, self.modified_directory)
         logging.debug(cmd)
         subprocess.check_output(cmd, shell=True)
 
     def _generate_deletions_and_modified(self):
         deleted_dir = os.path.join(self.temp_dir, 'deleted')
         os.makedirs(deleted_dir)
-        cmd = 'sudo rsync -axHAX --compare-dest=%s %s %s' % (self.vm_root, self.base_image_root, deleted_dir)
+        cmd = 'rsync -axHAX --compare-dest=%s %s %s' % (self.vm_root, self.base_image_root, deleted_dir)
         logging.debug(cmd)
         subprocess.check_output(cmd, shell=True)
         return self._list_all_files_and_folders(deleted_dir)
@@ -153,6 +154,13 @@ class BaseImageGenerator(object):
         cmds = []
         if self.process_packages:
             logging.debug('Generating package manager commands...')
+
+            # the package manager makes changes to the filesystem, so we are first going to clone the vm, and then
+            # modify the vm_root path
+            new_vm_root = os.path.join(os.path.join(self.temp_dir, 'vm_root'), '') # stupid trailing / hack
+            logging.debug('Cloning VM filesystem to be able to make changes...')
+            subprocess.check_output('rsync -axHAX --compare-dest=%s %s %s' % (new_vm_root, self.vm_root, new_vm_root), shell=True)
+            self.vm_root = new_vm_root
             m = MultiRootPackageManager(self.base_image_root, self.vm_root, repo)
             cmds.extend(m.prepare_vm())
             m.clean_up()
@@ -180,7 +188,7 @@ class BaseImageGenerator(object):
         # now tar up the modifications and into the directory
         changes = 'changes.tar'
         tar_file = os.path.join(temp_dir, 'changes.tar')
-        subprocess.check_output('sudo tar -C %s -c . -f %s' % (self.modified_directory, tar_file), shell=True)
+        subprocess.check_output('tar -C %s -c . -f %s' % (self.modified_directory, tar_file), shell=True)
 
         # move the deleted
         deleted = 'deleted.txt'
