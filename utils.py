@@ -1,6 +1,6 @@
 __author__ = 'elubin'
 import os
-
+import re
 
 def recursive_size(path):
     sizeof = os.path.getsize
@@ -15,3 +15,8 @@ def recursive_size(path):
         return total_size
     else:
         return sizeof(path)
+
+
+def generate_regexp(iterable):
+    options = '|'.join(iterable)
+    return re.compile('^(%s)$' % options)

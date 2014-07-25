@@ -9,9 +9,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='An automated command-line tool to convert virtual machines to layered docker images')
     parser.add_argument('vm_root', help='The path to the root of the virtual machine filesystem')
     parser.add_argument('--tag', default='my-vm', type=str, help='The tag to give the VM in docker')
+
     parser.add_argument('--packages', dest='packages', action='store_true')
     parser.add_argument('--no-packages', dest='packages', action='store_false')
-    parser.set_defaults(packages=False)
+    parser.set_defaults(packages=True)
+
     args = parser.parse_args()
 
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format='%(message)s')

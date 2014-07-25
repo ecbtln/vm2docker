@@ -38,3 +38,4 @@ Layout of expected steps for conversion
     - support for both kubernetes and fleet output files
     - Also read memory and processor allocation for VM, and reassign to container
     - Plug in to vSphere API and automatically distribute workload across workers to minimize conversion time of 1000s of VMs
+    - Develop tool that runs locally on VM and cleans up after itself ---> best way to ensure software compatibility

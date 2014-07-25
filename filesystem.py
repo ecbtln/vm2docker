@@ -7,8 +7,7 @@ import tempfile
 import tarfile
 import shutil
 import json
-from utils import recursive_size
-import re
+from utils import recursive_size, generate_regexp
 from packagemanager import MultiRootPackageManager
 
 
@@ -46,12 +45,12 @@ class BaseImageGenerator(object):
         self.base_image_root = os.path.join(self.temp_dir, base_image_dir, '')
         self.deleted_list = os.path.join(self.temp_dir, 'deleted.txt')
         os.makedirs(self.modified_directory)
-        self.generate_linux_info()
+        self.generate_linux_info(vm_root)
         self.process_packages = process_packages
         logging.debug('Detected OS: %s' % self.linux_info.get('PRETTY_NAME', self.linux_info.get('DISTRIB_DESCRIPTION')))
 
-    def generate_linux_info(self):
-        self.linux_info = LinuxInfoParser(self.vm_root).generate_os_info()
+    def generate_linux_info(self, vm_root):
+        self.linux_info = LinuxInfoParser(vm_root).generate_os_info()
 
     @staticmethod
     def transform_tag(repo, tag):
@@ -101,15 +100,15 @@ class BaseImageGenerator(object):
         # remove the tar
         os.remove(base_tar_path)
 
-    def generate_diff(self, base_image_root):
-        cmd = 'rsync -axHAX --compare-dest=%s %s %s' % (base_image_root, self.vm_root, self.modified_directory)
+    def generate_diff(self, base_image_root, vm_root):
+        cmd = 'rsync -axHAX --compare-dest=%s %s %s' % (base_image_root, vm_root, self.modified_directory)
         logging.debug(cmd)
         subprocess.check_output(cmd, shell=True)
 
-    def _generate_deletions_and_modified(self):
+    def _generate_deletions_and_modified(self, base_image_root, vm_root):
         deleted_dir = os.path.join(self.temp_dir, 'deleted')
         os.makedirs(deleted_dir)
-        cmd = 'rsync -axHAX --compare-dest=%s %s %s' % (self.vm_root, self.base_image_root, deleted_dir)
+        cmd = 'rsync -axHAX --compare-dest=%s %s %s' % (vm_root, base_image_root, deleted_dir)
         logging.debug(cmd)
         subprocess.check_output(cmd, shell=True)
         return self._list_all_files_and_folders(deleted_dir)
@@ -128,8 +127,8 @@ class BaseImageGenerator(object):
         system_list.reverse()
         return system_list
 
-    def generate_deletions(self):
-        deletions_and_modifications = self._generate_deletions_and_modified()
+    def generate_deletions(self, base_image_root, vm_root):
+        deletions_and_modifications = self._generate_deletions_and_modified(base_image_root, vm_root)
         deletions = list()
         for candidate in deletions_and_modifications:
             to_check = os.path.join(self.modified_directory, candidate)
@@ -151,33 +150,32 @@ class BaseImageGenerator(object):
         base_tar_path = self.export_base_image_tar(container_id)
         self.extract_base_image_tar(base_tar_path)
 
+        # the package manager makes changes to the filesystem, so we are first going to clone the vm, and then
+        # modify the vm_root path
+        new_vm_root = os.path.join(os.path.join(self.temp_dir, 'vm_root'), '') # stupid trailing / hack
+        logging.debug('Cloning VM filesystem to be able to make changes...')
+        subprocess.check_output('rsync -axHAX --compare-dest=%s %s %s' % (new_vm_root, self.vm_root, new_vm_root), shell=True)
+
         cmds = []
         if self.process_packages:
             logging.debug('Generating package manager commands...')
 
-            # the package manager makes changes to the filesystem, so we are first going to clone the vm, and then
-            # modify the vm_root path
-            new_vm_root = os.path.join(os.path.join(self.temp_dir, 'vm_root'), '') # stupid trailing / hack
-            logging.debug('Cloning VM filesystem to be able to make changes...')
-            subprocess.check_output('rsync -axHAX --compare-dest=%s %s %s' % (new_vm_root, self.vm_root, new_vm_root), shell=True)
-            self.vm_root = new_vm_root
-            m = MultiRootPackageManager(self.base_image_root, self.vm_root, repo)
+            m = MultiRootPackageManager(self.base_image_root, new_vm_root, repo)
             cmds.extend(m.prepare_vm())
             m.clean_up()
 
-
+        # TODO: trash the kernel
 
         logging.debug('Generating filesystem diff...')
-        self.generate_diff(self.base_image_root)
+        self.generate_diff(self.base_image_root, new_vm_root)
         exclude = {'\.dockerinit', 'dev.*'}
-        options = '|'.join(exclude)
-        regexp = re.compile('^(%s)$' % options)
+        regexp = generate_regexp(exclude)
         with open(self.deleted_list, 'w') as text_file:
             # prepend a '/' to every path, we want these to be absolute paths on the new host
-            text_file.write('\n'.join('/' + x for x in self.generate_deletions() if not regexp.match(x)))
+            text_file.write('\n'.join('/' + x for x in self.generate_deletions(self.base_image_root, new_vm_root) if not regexp.match(x)))
         path = self.create_docker_image(repo, tag, cmds=cmds)
         logging.debug('Docker build is now located at: %s' % path)
-        self.generate_statistics()
+        self.generate_statistics(new_vm_root, self.base_image_root)
         # now build it
         #self.build_and_push_to_registry(path, vm_tag)
         # now push it to the registry (local for now)
@@ -219,8 +217,9 @@ RUN rm -rf /src/%(deleted)s""" % {'repo': from_repo, 'tag': from_tag, 'changes':
         # delete the temporary directory
         shutil.rmtree(self.temp_dir)
 
-    def generate_statistics(self):
-        vm_size = recursive_size(self.vm_root) / (1024*1024)
-        base_image_size = recursive_size(self.base_image_root) / (1024*1024)
-        diff_size = recursive_size(self.modified_directory) / (1024*1024)
-        logging.debug('VM size: %sMB, Base image size: %sMB, Diff: %sMB', vm_size, base_image_size, diff_size)
+    def generate_statistics(self, new_vm_root, base_image_root, units=1024*1024):
+        vm_size = recursive_size(self.vm_root) / units
+        thinned_vm_size = recursive_size(new_vm_root) / units
+        base_image_size = recursive_size(base_image_root) / units
+        diff_size = recursive_size(self.modified_directory) / units
+        logging.debug('VM size: %sMB, Thin VM size: %sMB, Base image size: %sMB, Diff: %sMB', vm_size, thinned_vm_size, base_image_size, diff_size)

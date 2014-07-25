@@ -5,7 +5,7 @@ from multiprocessing import Process, Queue
 import os
 import tempfile
 import logging
-
+from utils import generate_regexp
 
 class ChrootManager(object):
     def __init__(self, root):
@@ -36,31 +36,41 @@ class ChrootManager(object):
 
 class PackageManager(object):
     __metaclass__ = abc.ABCMeta
+    PACKAGE_BLACKLIST = None
 
     def __init__(self, root):
         self.root = root
         self.to_clean = []
 
-    def _exec_in_jail(self, cmds):
-        if len(cmds) == 0:
-            return
-        f = lambda: [subprocess.check_output(cmd, shell=True) for cmd in cmds]
-        return ChrootManager(self.root).call(f)
+    # def _exec_in_jail(self, cmds):
+    #     if len(cmds) == 0:
+    #         return
+    #     f = lambda: [subprocess.check_output(cmd, shell=True) for cmd in cmds]
+    #     return ChrootManager(self.root).call(f)
 
     def get_installed(self):
-        return ChrootManager(self.root).call(self._get_installed)
+        installed = self._get_installed()
+        # filter out the blacklisted items
+        if self.PACKAGE_BLACKLIST is not None:
+            regexp = generate_regexp(self.PACKAGE_BLACKLIST)
+            return [x for x in installed if not regexp.match(x)]
+        return installed
 
     def install(self, packages):
-        return self._exec_in_jail(self._install_cmds(packages))
+        cmds = self._install_cmds(packages, relative=True)
+        for cmd in cmds:
+            logging.debug(cmd)
+            logging.debug(subprocess.check_output(cmd, shell=True))
 
     def uninstall(self, packages):
-        return self._exec_in_jail(self._uninstall_cmds(packages))
-
-    @staticmethod
-    def convert_install_to_deinstall(pkg):
-        spl = pkg.split()
-        spl[1] = 'deinstall'
-        return ' '.join(spl)
+        cmds = self._uninstall_cmds(packages, relative=True)
+        for cmd in cmds:
+            logging.debug(cmd)
+            try:
+                output = subprocess.check_output(cmd, shell=True)
+                logging.debug(output)
+            except subprocess.CalledProcessError as e:
+                logging.warning(e)
 
     @abc.abstractmethod
     def _get_installed(self):
@@ -68,11 +78,11 @@ class PackageManager(object):
 
     # These two abstract methods should be subclassed and return a command to do the following
     @abc.abstractmethod
-    def _install_cmds(self, packages):
+    def _install_cmds(self, packages, relative=False):
         pass
 
     @abc.abstractmethod
-    def _uninstall_cmds(self, packages):
+    def _uninstall_cmds(self, packages, relative=False):
         pass
 
     @staticmethod
@@ -90,28 +100,32 @@ class DebianPackageManager(PackageManager):
     For debian-like systems aka Ubuntu
     http://kvz.io/blog/2007/08/03/restore-packages-using-dselectupgrade/
     """
+    #PACKAGE_BLACKLIST = {'friendly-recovery', 'linux-image-.*'}
+    # use dpkg -r to remove packages one at a time
+    # use dpkg -i to install them after downloading with apt-get download pkg_name
     def _get_installed(self):
-        return [' '.join(x.split()) for x in subprocess.check_output('dpkg --get-selections | grep -v deinstall', shell=True).splitlines()]
+        return [x.split()[0] for x in subprocess.check_output('dpkg --get-selections --root=%s | grep -v deinstall' % self.root, shell=True).splitlines()]
 
-    def _install_cmds(self, packages):
+    def _install_cmds(self, packages, relative=False):
         if len(packages) == 0:
             return []
-        return self._add_or_remove(packages)
+        if relative:
+            download_dir = os.path.join(tempfile.mkdtemp(), '')
+            packages_list = ' '.join(packages)
+            return ['cd %s; apt-get download %s' % (download_dir, packages_list),
+                    'dpkg --root=%s -i %s*' % (self.root, download_dir)]
+        else:
+            return ['apt-get install %s' % ' '.join(packages)]
 
-    def _add_or_remove(self, package_commands):
-        fd, filepath = tempfile.mkstemp(suffix='.txt')
-        self.to_clean.append(filepath)
-        cmd0 = 'echo -e "%s" > %s' % ("\\n".join(package_commands), filepath)
-        cmd1 = 'dpkg --set-selections < %s' % filepath
-        cmd2 = 'apt-get -y update'
-        cmd3 = 'apt-get -y dselect-upgrade'
-        return [cmd0, cmd1, cmd2, cmd3]
 
-    def _uninstall_cmds(self, packages):
+    def _uninstall_cmds(self, packages, relative=False):
         if len(packages) == 0:
             return []
-        packages = (self.convert_install_to_deinstall(pkg) for pkg in packages)
-        return self._add_or_remove(packages)
+        if relative:
+            return ['dpkg --root=%s -r %s' % (self.root, ' '.join(packages))]
+        else:
+            return ['apt-get remove %s' % ' '.join(packages)]
+            #return ['dpkg -r %s' % (' '.join(packages))]
 
 
 class MultiRootPackageManager(object):
@@ -130,7 +144,7 @@ class MultiRootPackageManager(object):
         logging.debug('%d packages to uninstall on the docker image' % len(to_install))
 
         # step 1. uninstall packages that are on VM but not on base image
-        #self.vm.uninstall(to_uninstall)
+        self.vm.uninstall(to_uninstall)
 
         # step 2. install packages that are on base image but not on VM
         #self.vm.install(to_install)
