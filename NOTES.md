@@ -37,7 +37,7 @@ Layout of expected steps for conversion
     - Determine if privileged mode is needed. Generally, some VMs might be doing things that containers don't support
 5. Potential future abstractions
     - support VDI and VMDK filesystems
-    - support for both kubernetes and fleet output files
+    - support for [fig](http://orchardup.github.io/fig/), [fleet](http://coreos.com/blog/cluster-level-container-orchestration/), and [kubernetes](https://github.com/GoogleCloudPlatform/kubernetes) output files
     - Also read memory and processor allocation for VM, and reassign to container
     - Plug in to vSphere API and automatically distribute workload across workers to minimize conversion time of 1000s of VMs
     - Develop tool that runs locally on VM and cleans up after itself ---> best way to ensure software compatibility
