@@ -1,8 +1,9 @@
 __author__ = 'elubin'
 import os
 import re
+import shutil
 
-def recursive_size(path):
+def recursive_size(path, divisor=1024*1024):
     sizeof = os.path.getsize
     if os.path.isdir(path):
         # walk it
@@ -12,11 +13,18 @@ def recursive_size(path):
                 full_path = os.path.join(dirpath, fname)
                 if not os.path.islink(full_path):
                     total_size += sizeof(full_path)
-        return total_size
+        return total_size / divisor
     else:
-        return sizeof(path)
+        return sizeof(path) / divisor
 
 
 def generate_regexp(iterable):
     options = '|'.join(iterable)
     return re.compile('^(%s)$' % options)
+
+
+def rm_rf(path):
+    if os.path.isdir(path):
+        shutil.rmtree(path)
+    else:
+        os.remove(path)

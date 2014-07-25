@@ -10,9 +10,15 @@ if __name__ == '__main__':
     parser.add_argument('vm_root', help='The path to the root of the virtual machine filesystem')
     parser.add_argument('--tag', default='my-vm', type=str, help='The tag to give the VM in docker')
 
-    parser.add_argument('--packages', dest='packages', action='store_true')
-    parser.add_argument('--no-packages', dest='packages', action='store_false')
+    process_pkg_group = parser.add_mutually_exclusive_group()
+    process_pkg_group.add_argument('--packages', dest='packages', action='store_true')
+    process_pkg_group.add_argument('--no-packages', dest='packages', action='store_false')
     parser.set_defaults(packages=True)
+
+    clean_cache_group = parser.add_mutually_exclusive_group()
+    clean_cache_group.add_argument('--clean-cache', dest='cache', action='store_true')
+    clean_cache_group.add_argument('--no-clean-cache', dest='cache', action='store_false')
+    parser.set_defaults(cache=False)
 
     args = parser.parse_args()
 
@@ -26,7 +32,7 @@ if __name__ == '__main__':
     vm_root = os.path.abspath(args.vm_root)
     tag_name = args.tag
 
-    with BaseImageGenerator(vm_root, client, process_packages=args.packages) as image_gen:
+    with BaseImageGenerator(vm_root, client, process_packages=args.packages, cache=args.cache) as image_gen:
         image_gen.generate(tag_name)
 
 

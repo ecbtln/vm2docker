@@ -5,7 +5,9 @@ from multiprocessing import Process, Queue
 import os
 import tempfile
 import logging
-from utils import generate_regexp
+from utils import generate_regexp, recursive_size, rm_rf
+from os_helpers import debian
+from dependencygraph import filter_non_dependencies
 
 class ChrootManager(object):
     def __init__(self, root):
@@ -37,6 +39,7 @@ class ChrootManager(object):
 class PackageManager(object):
     __metaclass__ = abc.ABCMeta
     PACKAGE_BLACKLIST = None
+    CACHED_FILES = {}
 
     def __init__(self, root):
         self.root = root
@@ -74,16 +77,16 @@ class PackageManager(object):
 
     @abc.abstractmethod
     def _get_installed(self):
-        pass
+        return []
 
     # These two abstract methods should be subclassed and return a command to do the following
     @abc.abstractmethod
     def _install_cmds(self, packages, relative=False):
-        pass
+        return []
 
     @abc.abstractmethod
     def _uninstall_cmds(self, packages, relative=False):
-        pass
+        return []
 
     @staticmethod
     def package_manager(system):
@@ -101,6 +104,11 @@ class PackageManager(object):
         self.clean_up()
         return False
 
+    def delete_cached_files(self):
+        proper_path = (os.path.join(self.root, os.path.relpath(f, '/')) for f in self.CACHED_FILES)
+        for f in proper_path:
+            rm_rf(f)
+
 
 class DebianPackageManager(PackageManager):
     """
@@ -110,6 +118,8 @@ class DebianPackageManager(PackageManager):
     #PACKAGE_BLACKLIST = {'friendly-recovery', 'linux-image-.*'}
     # use dpkg -r to remove packages one at a time
     # use dpkg -i to install them after downloading with apt-get download pkg_name
+
+    CACHED_FILES = {'/var/cache/apt/pkgcache.bin', '/var/cache/apt/srcpkgcache.bin'}
     def _get_installed(self):
         return [x.split()[0] for x in subprocess.check_output('dpkg --get-selections --root=%s | grep -v deinstall' % self.root, shell=True).splitlines()]
 
@@ -122,8 +132,11 @@ class DebianPackageManager(PackageManager):
             return ['cd %s; apt-get download %s' % (download_dir, packages_list),
                     'dpkg --root=%s -i %s*' % (self.root, download_dir)]
         else:
+            # now we can filter the packages using a dependency graph!
+            logging.debug('Before dependency graph, %d packages should be installed' % len(packages))
+            packages = filter_non_dependencies(packages, debian.get_dependencies)
+            logging.debug('After dependency graph, %d packages should be installed' % len(packages))
             return ['apt-get install %s' % ' '.join(packages)]
-
 
     def _uninstall_cmds(self, packages, relative=False):
         if len(packages) == 0:
@@ -136,10 +149,11 @@ class DebianPackageManager(PackageManager):
 
 
 class MultiRootPackageManager(object):
-    def __init__(self, base_image_root, vm_root, os):
+    def __init__(self, base_image_root, vm_root, os, delete_cached_files=True):
         cls = PackageManager.package_manager(os)
         self.base_image = cls(base_image_root)
         self.vm = cls(vm_root)
+        self.delete_cached_files = delete_cached_files
 
     def __enter__(self):
         return self
@@ -149,28 +163,28 @@ class MultiRootPackageManager(object):
         self.vm.__exit__(exc_type, exc_val, exc_tb)
         return False
 
-
     def prepare_vm(self):
         base_installed = set(self.base_image.get_installed())
         vm_installed = set(self.vm.get_installed())
 
         to_install = base_installed - vm_installed
         to_uninstall = vm_installed - base_installed
-        logging.debug('%d packages to install on the docker image' % len(to_uninstall))
-        logging.debug('%d packages to uninstall on the docker image' % len(to_install))
+        logging.debug('%d packages to uninstall from the vm clone' % len(to_uninstall))
+        logging.debug('%d packages to install on the vm clone' % len(to_install))
 
         # step 1. uninstall packages that are on VM but not on base image
         self.vm.uninstall(to_uninstall)
 
         # step 2. install packages that are on base image but not on VM
-        #self.vm.install(to_install)
+        self.vm.install(to_install)
+
+        if self.delete_cached_files:
+            logging.debug('VM size before cache purge %dMB' % recursive_size(self.vm.root))
+            self.vm.delete_cached_files()
+            logging.debug('VM size after cache purge %dMB' % recursive_size(self.vm.root))
 
         # step 3. return commands to undo the effects
         cmds = self.vm._uninstall_cmds(to_install)
         cmds.extend(self.vm._install_cmds(to_uninstall))
         return cmds
-
-    def clean_up(self):
-        self.base_image.clean_up()
-        self.vm.clean_up()
 

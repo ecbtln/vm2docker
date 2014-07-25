@@ -8,7 +8,7 @@ import tarfile
 import shutil
 import json
 from utils import recursive_size, generate_regexp
-from packagemanager import MultiRootPackageManager
+from packagemanager.packagemanager import MultiRootPackageManager
 
 
 class LinuxInfoParser(object):
@@ -36,12 +36,12 @@ class LinuxInfoParser(object):
 
 
 class BaseImageGenerator(object):
-    def __init__(self, vm_root, dclient, process_packages=True):
+    def __init__(self, vm_root, dclient, process_packages=True, cache=False):
         self.docker_client = dclient
         self.vm_root = os.path.join(os.path.abspath(vm_root), '')  # stupid hack to get the trailing slash
         self.process_packages = process_packages
         self.generate_linux_info()
-
+        self.cache = cache
 
     def __enter__(self):
         self.temp_dir = tempfile.mkdtemp()
@@ -169,7 +169,7 @@ class BaseImageGenerator(object):
         if self.process_packages:
             logging.debug('Generating package manager commands...')
 
-            with MultiRootPackageManager(self.base_image_root, new_vm_root, repo) as m:
+            with MultiRootPackageManager(self.base_image_root, new_vm_root, repo, delete_cached_files=self.cache) as m:
                 cmds.extend(m.prepare_vm())
 
 
@@ -226,9 +226,9 @@ RUN rm -rf /src/%(deleted)s""" % {'repo': from_repo, 'tag': from_tag, 'changes':
         # delete the temporary directory
         shutil.rmtree(self.temp_dir)
 
-    def generate_statistics(self, new_vm_root, base_image_root, units=1024*1024):
-        vm_size = recursive_size(self.vm_root) / units
-        thinned_vm_size = recursive_size(new_vm_root) / units
-        base_image_size = recursive_size(base_image_root) / units
-        diff_size = recursive_size(self.modified_directory) / units
+    def generate_statistics(self, new_vm_root, base_image_root, units='MB'):
+        vm_size = recursive_size(self.vm_root)
+        thinned_vm_size = recursive_size(new_vm_root)
+        base_image_size = recursive_size(base_image_root)
+        diff_size = recursive_size(self.modified_directory)
         logging.debug('VM size: %sMB, Thin VM size: %sMB, Base image size: %sMB, Diff: %sMB', vm_size, thinned_vm_size, base_image_size, diff_size)
