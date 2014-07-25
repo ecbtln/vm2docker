@@ -94,6 +94,13 @@ class PackageManager(object):
         for f in self.to_clean:
             os.remove(f)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.clean_up()
+        return False
+
 
 class DebianPackageManager(PackageManager):
     """
@@ -133,6 +140,15 @@ class MultiRootPackageManager(object):
         cls = PackageManager.package_manager(os)
         self.base_image = cls(base_image_root)
         self.vm = cls(vm_root)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.base_image.__exit__(exc_type, exc_val, exc_tb)
+        self.vm.__exit__(exc_type, exc_val, exc_tb)
+        return False
+
 
     def prepare_vm(self):
         base_installed = set(self.base_image.get_installed())

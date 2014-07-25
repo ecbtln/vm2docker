@@ -39,18 +39,27 @@ class BaseImageGenerator(object):
     def __init__(self, vm_root, dclient, process_packages=True):
         self.docker_client = dclient
         self.vm_root = os.path.join(os.path.abspath(vm_root), '')  # stupid hack to get the trailing slash
+        self.process_packages = process_packages
+        self.generate_linux_info()
+
+
+    def __enter__(self):
         self.temp_dir = tempfile.mkdtemp()
         self.modified_directory = os.path.join(self.temp_dir, 'modded')
         base_image_dir = 'root_fs'
         self.base_image_root = os.path.join(self.temp_dir, base_image_dir, '')
         self.deleted_list = os.path.join(self.temp_dir, 'deleted.txt')
         os.makedirs(self.modified_directory)
-        self.generate_linux_info(vm_root)
-        self.process_packages = process_packages
         logging.debug('Detected OS: %s' % self.linux_info.get('PRETTY_NAME', self.linux_info.get('DISTRIB_DESCRIPTION')))
+        return self
 
-    def generate_linux_info(self, vm_root):
-        self.linux_info = LinuxInfoParser(vm_root).generate_os_info()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.clean_up()
+        return False
+
+    def generate_linux_info(self):
+        self.linux_info = LinuxInfoParser(self.vm_root).generate_os_info()
 
     @staticmethod
     def transform_tag(repo, tag):
@@ -152,7 +161,7 @@ class BaseImageGenerator(object):
 
         # the package manager makes changes to the filesystem, so we are first going to clone the vm, and then
         # modify the vm_root path
-        new_vm_root = os.path.join(os.path.join(self.temp_dir, 'vm_root'), '') # stupid trailing / hack
+        new_vm_root = os.path.join(self.temp_dir, 'vm_root', '') # stupid trailing / hack
         logging.debug('Cloning VM filesystem to be able to make changes...')
         subprocess.check_output('rsync -axHAX --compare-dest=%s %s %s' % (new_vm_root, self.vm_root, new_vm_root), shell=True)
 
@@ -160,9 +169,9 @@ class BaseImageGenerator(object):
         if self.process_packages:
             logging.debug('Generating package manager commands...')
 
-            m = MultiRootPackageManager(self.base_image_root, new_vm_root, repo)
-            cmds.extend(m.prepare_vm())
-            m.clean_up()
+            with MultiRootPackageManager(self.base_image_root, new_vm_root, repo) as m:
+                cmds.extend(m.prepare_vm())
+
 
         # TODO: trash the kernel
 

@@ -26,10 +26,8 @@ if __name__ == '__main__':
     vm_root = os.path.abspath(args.vm_root)
     tag_name = args.tag
 
-    # TODO: use a context manager so things automatically get cleaned up
-    image_gen = BaseImageGenerator(vm_root, client, process_packages=args.packages)
-    docker_dir = image_gen.generate(tag_name)
-    #image_gen.clean_up()
+    with BaseImageGenerator(vm_root, client, process_packages=args.packages) as image_gen:
+        image_gen.generate(tag_name)
 
 
 
