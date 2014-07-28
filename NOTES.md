@@ -17,7 +17,6 @@ Layout of expected steps for conversion
         - Generate commands to reinstall any packages that are missing:
             - i.e. [Ubuntu apt-get autogeneration](http://kracekumar.com/post/70198562577/autogenerate-dockerfile-from-ubuntu-image)
             - Automatically determine which packages were only installed as dependencies to not include these in the apt-get install
-                -
         - Add the rest of the files using the ADD directive and tar to unpackage the diff'ed filesystem
         - Delete any files that need to be deleted, presumably using an ADD directive and then a RUN command
         - Further optimizations
