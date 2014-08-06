@@ -63,7 +63,8 @@ class PackageManager(object):
         cmds = self._install_cmds(packages, relative=True)
         for cmd in cmds:
             logging.debug(cmd)
-            logging.debug(subprocess.check_output(cmd, shell=True))
+            out = subprocess.check_output(cmd, shell=True)
+            logging.info(out)
 
     def uninstall(self, packages):
         cmds = self._uninstall_cmds(packages, relative=True)
@@ -115,7 +116,7 @@ class DebianPackageManager(PackageManager):
     For debian-like systems aka Ubuntu
     http://kvz.io/blog/2007/08/03/restore-packages-using-dselectupgrade/
     """
-    #PACKAGE_BLACKLIST = {'friendly-recovery', 'linux-image-.*'}
+    #PACKAGE_BLACKLIST = {'friendly-recovery', 'linux-.*', 'libpam.*'}
     # use dpkg -r to remove packages one at a time
     # use dpkg -i to install them after downloading with apt-get download pkg_name
 
@@ -134,9 +135,12 @@ class DebianPackageManager(PackageManager):
         else:
             # now we can filter the packages using a dependency graph!
             logging.debug('Before dependency graph, %d packages should be installed' % len(packages))
+            logging.debug(packages)
             packages = filter_non_dependencies(packages, debian.get_dependencies)
+
             logging.debug('After dependency graph, %d packages should be installed' % len(packages))
-            return ['apt-get install %s' % ' '.join(packages)]
+            logging.debug(packages)
+            return ['apt-get install -y %s' % ' '.join(packages)]
 
     def _uninstall_cmds(self, packages, relative=False):
         if len(packages) == 0:
@@ -144,7 +148,7 @@ class DebianPackageManager(PackageManager):
         if relative:
             return ['dpkg --root=%s -r %s' % (self.root, ' '.join(packages))]
         else:
-            return ['apt-get remove %s' % ' '.join(packages)]
+            return ['apt-get remove -y %s' % ' '.join(packages)]
             #return ['dpkg -r %s' % (' '.join(packages))]
 
 

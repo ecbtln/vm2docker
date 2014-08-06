@@ -13,12 +13,17 @@ if __name__ == '__main__':
     process_pkg_group = parser.add_mutually_exclusive_group()
     process_pkg_group.add_argument('--packages', dest='packages', action='store_true')
     process_pkg_group.add_argument('--no-packages', dest='packages', action='store_false')
-    parser.set_defaults(packages=True)
+    parser.set_defaults(packages=False)
 
     clean_cache_group = parser.add_mutually_exclusive_group()
     clean_cache_group.add_argument('--clean-cache', dest='cache', action='store_true')
     clean_cache_group.add_argument('--no-clean-cache', dest='cache', action='store_false')
     parser.set_defaults(cache=False)
+
+    clean_cache_group = parser.add_mutually_exclusive_group()
+    clean_cache_group.add_argument('--run', dest='run', action='store_true')
+    clean_cache_group.add_argument('--no-run', dest='run', action='store_false')
+    parser.set_defaults(run=True)
 
     args = parser.parse_args()
 
@@ -33,7 +38,7 @@ if __name__ == '__main__':
     tag_name = args.tag
 
     with BaseImageGenerator(vm_root, client, process_packages=args.packages, cache=args.cache) as image_gen:
-        image_gen.generate(tag_name)
+        image_gen.generate(tag_name, run_locally=args.run)
 
 
 

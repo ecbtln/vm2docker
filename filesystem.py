@@ -147,7 +147,7 @@ class BaseImageGenerator(object):
         logging.debug('%d modifications and deletions, %d deletions' % (len(deletions_and_modifications), len(deletions)))
         return deletions
 
-    def generate(self, vm_tag):
+    def generate(self, vm_tag, run_locally=False):
 
         repo = self.linux_info.get('ID', self.linux_info.get('DISTRIB_ID')).lower()
 
@@ -186,7 +186,7 @@ class BaseImageGenerator(object):
         logging.debug('Docker build is now located at: %s' % path)
         self.generate_statistics(new_vm_root, self.base_image_root)
         # now build it
-        #self.build_and_push_to_registry(path, vm_tag)
+        self.build_and_push_to_registry(path, vm_tag, run_locally)
         # now push it to the registry (local for now)
 
     def create_docker_image(self, from_repo, from_tag, cmds=None):
@@ -204,7 +204,8 @@ class BaseImageGenerator(object):
 ADD %(changes)s /
 ADD %(deleted)s /src/
 RUN xargs -d '\\n' -a /src/%(deleted)s rm -r
-RUN rm -rf /src/%(deleted)s""" % {'repo': from_repo, 'tag': from_tag, 'changes': changes, 'deleted': deleted}
+RUN rm -rf /src/%(deleted)s
+""" % {'repo': from_repo, 'tag': from_tag, 'changes': changes, 'deleted': deleted}
         if cmds is not None and len(cmds) > 0:
             rest = '\n'.join('RUN %s' % cmd for cmd in cmds)
         else:
@@ -212,15 +213,27 @@ RUN rm -rf /src/%(deleted)s""" % {'repo': from_repo, 'tag': from_tag, 'changes':
 
         df = "%s\n%s" % (df, rest)
 
+        # specific for apache, need to add a layer of abstraction
+        df = "%s\n%s" % (df, "RUN mkdir -p /run/lock\nEXPOSE 80\nCMD [\"apachectl\", \"-DFOREGROUND\"]")
+
+
         with open(os.path.join(temp_dir, 'Dockerfile'), 'w') as dockerfile:
             dockerfile.write(df)
 
         return temp_dir
 
-    def build_and_push_to_registry(self, docker_dir, tag):
-        for x in self.docker_client.build(path=docker_dir, tag='VM:%s' % tag):
+    def build_and_push_to_registry(self, docker_dir, tag, run=False):
+        tag = 'VM:%s' % tag
+        for x in self.docker_client.build(path=docker_dir, tag=tag):
             y = json.loads(x)
             logging.debug(y['stream'])
+
+
+        logging.debug("To run the container execute the following:\n$ docker run -P %s" % tag)
+        #if run:
+
+            #res = self.docker_client.create_container(tag)
+            #logging.debug("Kickstarted Docker image with container ID: %s" % res)
 
     def clean_up(self):
         # delete the temporary directory
@@ -231,4 +244,7 @@ RUN rm -rf /src/%(deleted)s""" % {'repo': from_repo, 'tag': from_tag, 'changes':
         thinned_vm_size = recursive_size(new_vm_root)
         base_image_size = recursive_size(base_image_root)
         diff_size = recursive_size(self.modified_directory)
-        logging.debug('VM size: %sMB, Thin VM size: %sMB, Base image size: %sMB, Diff: %sMB', vm_size, thinned_vm_size, base_image_size, diff_size)
+        #logging.debug('VM size: %sMB, Thin VM size: %sMB, Base image size: %sMB, Diff: %sMB', vm_size, thinned_vm_size, base_image_size, diff_size)
+
+
+# TODO: make a verify tool that builds the docker file, exports the image, and then does a diff on the resulting filesystem compared to the original VM
