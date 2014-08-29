@@ -9,6 +9,7 @@ import shutil
 import json
 from utils import recursive_size, generate_regexp
 from packagemanager.packagemanager import MultiRootPackageManager
+from dockerfile import DockerFile
 
 
 class LinuxInfoParser(object):
@@ -173,6 +174,8 @@ class BaseImageGenerator(object):
                 cmds.extend(m.prepare_vm())
 
 
+        # put commands in Dockerfile,
+
         # TODO: trash the kernel
 
         logging.debug('Generating filesystem diff...')
@@ -193,32 +196,21 @@ class BaseImageGenerator(object):
         temp_dir = tempfile.mkdtemp()
 
         # now tar up the modifications and into the directory
-        changes = 'changes.tar'
-        tar_file = os.path.join(temp_dir, 'changes.tar')
+        changes = DockerFile.CHANGES
+        tar_file = os.path.join(temp_dir, changes)
         subprocess.check_output('tar -C %s -c . -f %s' % (self.modified_directory, tar_file), shell=True)
 
         # move the deleted
-        deleted = 'deleted.txt'
+        deleted = DockerFile.DELETED
         os.rename(self.deleted_list, os.path.join(temp_dir, deleted))
-        df = """FROM %(repo)s:%(tag)s
-ADD %(changes)s /
-ADD %(deleted)s /src/
-RUN xargs -d '\\n' -a /src/%(deleted)s rm -r
-RUN rm -rf /src/%(deleted)s
-""" % {'repo': from_repo, 'tag': from_tag, 'changes': changes, 'deleted': deleted}
-        if cmds is not None and len(cmds) > 0:
-            rest = '\n'.join('RUN %s' % cmd for cmd in cmds)
-        else:
-            rest = ''
 
-        df = "%s\n%s" % (df, rest)
 
-        # specific for apache, need to add a layer of abstraction
-        df = "%s\n%s" % (df, "RUN mkdir -p /run/lock\nEXPOSE 80\nCMD [\"apachectl\", \"-DFOREGROUND\"]")
+        df = DockerFile(from_repo, from_tag)
+        df.add_build_cmds(cmds)
 
 
         with open(os.path.join(temp_dir, 'Dockerfile'), 'w') as dockerfile:
-            dockerfile.write(df)
+            dockerfile.write(df.serialize(pre_diff=True))
 
         return temp_dir
 

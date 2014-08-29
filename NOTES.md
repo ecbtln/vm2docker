@@ -38,5 +38,6 @@ Layout of expected steps for conversion
     - support VDI and VMDK filesystems
     - support for [fig](http://orchardup.github.io/fig/), [fleet](http://coreos.com/blog/cluster-level-container-orchestration/), and [kubernetes](https://github.com/GoogleCloudPlatform/kubernetes) output files
     - Also read memory and processor allocation for VM, and reassign to container
+    - As of Docker 1.2, include the restart policy from VMX file (high availability etc)
     - Plug in to vSphere API and automatically distribute workload across workers to minimize conversion time of 1000s of VMs
     - Develop tool that runs locally on VM and cleans up after itself ---> best way to ensure software compatibility
