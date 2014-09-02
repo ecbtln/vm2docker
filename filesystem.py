@@ -6,10 +6,9 @@ import subprocess
 import tempfile
 import tarfile
 import shutil
-import json
 from utils import recursive_size, generate_regexp
 from packagemanager.packagemanager import MultiRootPackageManager
-from dockerfile import DockerFile
+from dockerfile import DiffBasedDockerBuild, DockerBuild
 
 
 class LinuxInfoParser(object):
@@ -160,8 +159,8 @@ class BaseImageGenerator(object):
         base_tar_path = self.export_base_image_tar(container_id)
         self.extract_base_image_tar(base_tar_path)
 
-        # the package manager makes changes to the filesystem, so we are first going to clone the vm, and then
-        # modify the vm_root path
+        # # the package manager makes changes to the filesystem, so we are first going to clone the vm, and then
+        # # modify the vm_root path
         new_vm_root = os.path.join(self.temp_dir, 'vm_root', '') # stupid trailing / hack
         logging.debug('Cloning VM filesystem to be able to make changes...')
         subprocess.check_output('rsync -axHAX --compare-dest=%s %s %s' % (new_vm_root, self.vm_root, new_vm_root), shell=True)
@@ -171,7 +170,19 @@ class BaseImageGenerator(object):
             logging.debug('Generating package manager commands...')
 
             with MultiRootPackageManager(self.base_image_root, new_vm_root, repo, delete_cached_files=self.cache) as m:
-                cmds.extend(m.prepare_vm())
+                cmds.extend(m.prepare_vm(read_only=True))
+
+
+
+            db = DockerBuild(repo, tag, self.docker_client)
+            db.df.add_build_cmds(cmds)
+            db.serialize()
+            db.build('packages-only')
+
+
+            # once built, we wanna export it and create a diff
+
+
 
 
         # put commands in Dockerfile,
@@ -185,41 +196,34 @@ class BaseImageGenerator(object):
         with open(self.deleted_list, 'w') as text_file:
             # prepend a '/' to every path, we want these to be absolute paths on the new host
             text_file.write('\n'.join('/' + x for x in self.generate_deletions(self.base_image_root, new_vm_root) if not regexp.match(x)))
-        path = self.create_docker_image(repo, tag, cmds=cmds)
-        logging.debug('Docker build is now located at: %s' % path)
+        build = self.create_docker_image(repo, tag, cmds=cmds)
+        logging.debug('Docker build is now located at: %s' % build.dir)
         self.generate_statistics(new_vm_root, self.base_image_root)
         # now build it
-        self.build_and_push_to_registry(path, vm_tag, run_locally)
+        self.build_and_push_to_registry(build, vm_tag, run_locally)
         # now push it to the registry (local for now)
 
     def create_docker_image(self, from_repo, from_tag, cmds=None):
-        temp_dir = tempfile.mkdtemp()
+        build = DiffBasedDockerBuild(from_repo, from_tag, self.docker_client)
 
         # now tar up the modifications and into the directory
-        changes = DockerFile.CHANGES
-        tar_file = os.path.join(temp_dir, changes)
+        changes = DiffBasedDockerBuild.CHANGES
+        tar_file = os.path.join(build.dir, changes)
         subprocess.check_output('tar -C %s -c . -f %s' % (self.modified_directory, tar_file), shell=True)
 
         # move the deleted
-        deleted = DockerFile.DELETED
-        os.rename(self.deleted_list, os.path.join(temp_dir, deleted))
+        deleted = DiffBasedDockerBuild.DELETED
+        os.rename(self.deleted_list, os.path.join(build.dir, deleted))
 
+        build.df.add_build_cmds(cmds)
 
-        df = DockerFile(from_repo, from_tag)
-        df.add_build_cmds(cmds)
+        build.serialize()
 
+        return build
 
-        with open(os.path.join(temp_dir, 'Dockerfile'), 'w') as dockerfile:
-            dockerfile.write(df.serialize(pre_diff=True))
-
-        return temp_dir
-
-    def build_and_push_to_registry(self, docker_dir, tag, run=False):
+    def build_and_push_to_registry(self, d_build, tag, run=False):
         tag = 'VM:%s' % tag
-        for x in self.docker_client.build(path=docker_dir, tag=tag):
-            y = json.loads(x)
-            logging.debug(y['stream'])
-
+        d_build.build(tag)
 
         logging.debug("To run the container execute the following:\n$ docker run -P %s" % tag)
         #if run:

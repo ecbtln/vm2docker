@@ -167,28 +167,31 @@ class MultiRootPackageManager(object):
         self.vm.__exit__(exc_type, exc_val, exc_tb)
         return False
 
-    def prepare_vm(self):
+    def prepare_vm(self, read_only=True):
         base_installed = set(self.base_image.get_installed())
         vm_installed = set(self.vm.get_installed())
 
         to_install = base_installed - vm_installed
         to_uninstall = vm_installed - base_installed
-        logging.debug('%d packages to uninstall from the vm clone' % len(to_uninstall))
-        logging.debug('%d packages to install on the vm clone' % len(to_install))
 
-        # step 1. uninstall packages that are on VM but not on base image
-        self.vm.uninstall(to_uninstall)
+        if not read_only:
+            logging.debug('%d packages to uninstall from the vm clone' % len(to_uninstall))
+            logging.debug('%d packages to install on the vm clone' % len(to_install))
 
-        # step 2. install packages that are on base image but not on VM
-        self.vm.install(to_install)
+            # step 1. uninstall packages that are on VM but not on base image
+            self.vm.uninstall(to_uninstall)
 
-        if self.delete_cached_files:
-            logging.debug('VM size before cache purge %dMB' % recursive_size(self.vm.root))
-            self.vm.delete_cached_files()
-            logging.debug('VM size after cache purge %dMB' % recursive_size(self.vm.root))
+            # step 2. install packages that are on base image but not on VM
+            self.vm.install(to_install)
+
+            if self.delete_cached_files:
+                logging.debug('VM size before cache purge %dMB' % recursive_size(self.vm.root))
+                self.vm.delete_cached_files()
+                logging.debug('VM size after cache purge %dMB' % recursive_size(self.vm.root))
 
         # step 3. return commands to undo the effects
         cmds = self.vm._uninstall_cmds(to_install)
         cmds.extend(self.vm._install_cmds(to_uninstall))
         return cmds
+
 
