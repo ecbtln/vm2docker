@@ -39,6 +39,7 @@ class ChrootManager(object):
 class PackageManager(object):
     __metaclass__ = abc.ABCMeta
     PACKAGE_BLACKLIST = None
+    PACKAGE_WHITELIST = None
     CACHED_FILES = {}
 
     def __init__(self, root):
@@ -53,10 +54,17 @@ class PackageManager(object):
 
     def get_installed(self):
         installed = self._get_installed()
-        # filter out the blacklisted items
+        # filter out the blacklisted and white listed items
+        if self.PACKAGE_WHITELIST is not None:
+            regexp = generate_regexp(self.PACKAGE_WHITELIST)
+            installed = [x for x in installed if regexp.match(x)]
+
         if self.PACKAGE_BLACKLIST is not None:
             regexp = generate_regexp(self.PACKAGE_BLACKLIST)
-            return [x for x in installed if not regexp.match(x)]
+            installed = [x for x in installed if not regexp.match(x)]
+
+
+
         return installed
 
     def install(self, packages):
@@ -117,6 +125,7 @@ class DebianPackageManager(PackageManager):
     http://kvz.io/blog/2007/08/03/restore-packages-using-dselectupgrade/
     """
     #PACKAGE_BLACKLIST = {'friendly-recovery', 'linux-.*', 'libpam.*'}
+    #PACKAGE_WHITELIST = {'telnet'}
     # use dpkg -r to remove packages one at a time
     # use dpkg -i to install them after downloading with apt-get download pkg_name
 

@@ -87,27 +87,36 @@ class BaseImageGenerator(object):
         logging.debug('Container ID: %s' % container_id)
         return container_id
 
-    def export_base_image_tar(self, container_id):
+    def export_container_to_tar(self, container_id, tar_name='base_linux.tar'):
         # TODO: compare memory usage of python export, i think it loads entire archive into memory which is not what we want
         # TODO; if the python API isn't good enough, then at least use standard python-based piping instead
-        base_tar = 'base_linux.tar'
-        base_tar_path = os.path.join(self.temp_dir, base_tar)
-        logging.debug('Writing base image to %s' % base_tar_path)
-        subprocess.check_output('docker export %s > %s' % (container_id, base_tar_path), shell=True)
+        abs_tar_path = os.path.join(self.temp_dir, tar_name)
+        logging.debug('Writing base image to %s' % abs_tar_path)
+        subprocess.check_output('docker export %s > %s' % (container_id, abs_tar_path), shell=True)
 
-        assert tarfile.is_tarfile(base_tar_path)
-        return base_tar_path
+        assert tarfile.is_tarfile(abs_tar_path)
+        return abs_tar_path
+
+    def extract_tar(self, tar_path, target_dir, clean_up=True):
+        assert os.path.isabs(tar_path)
+        if not os.path.isabs(target_dir):
+            target_dir = os.path.join(self.temp_dir, target_dir, '')
+
+        tf = tarfile.open(tar_path, 'r')
+
+        os.makedirs(target_dir)
+
+        logging.debug('Extracting tar to %s' % target_dir)
+        tf.extractall(target_dir)
+
+        if clean_up:
+            # remove the tar
+            os.remove(tar_path)
+
+        return target_dir
 
     def extract_base_image_tar(self, base_tar_path):
-        tf = tarfile.open(base_tar_path, 'r')
-
-        os.makedirs(self.base_image_root)
-
-        logging.debug('Extracting base image to %s' % self.base_image_root)
-        tf.extractall(self.base_image_root)
-
-        # remove the tar
-        os.remove(base_tar_path)
+        self.extract_tar(base_tar_path, self.base_image_root)
 
     def generate_diff(self, base_image_root, vm_root):
         cmd = 'rsync -axHAX --compare-dest=%s %s %s' % (base_image_root, vm_root, self.modified_directory)
@@ -156,7 +165,7 @@ class BaseImageGenerator(object):
         tag = self.transform_tag(repo, tag)
         container_id = self.find_base_image(repo, tag)
         assert container_id is not None
-        base_tar_path = self.export_base_image_tar(container_id)
+        base_tar_path = self.export_container_to_tar(container_id)
         self.extract_base_image_tar(base_tar_path)
 
         # # the package manager makes changes to the filesystem, so we are first going to clone the vm, and then
@@ -173,17 +182,19 @@ class BaseImageGenerator(object):
                 cmds.extend(m.prepare_vm(read_only=True))
 
 
-
             db = DockerBuild(repo, tag, self.docker_client)
             db.df.add_build_cmds(cmds)
             db.serialize()
-            db.build('packages-only')
+            id = db.build('packages-only')
 
-
+            if id is None:
+                raise ValueError("One or more of the commands failed to execute successfully")
             # once built, we wanna export it and create a diff
-
-
-
+            container_id = self.start_image_and_generate_container_id(id)
+            tar_name = 'packages.tar'
+            abs_tar_path = self.export_container_to_tar(container_id, tar_name)
+            new_vm_root = self.extract_tar(abs_tar_path, 'packages_container')
+        exit(0)
 
         # put commands in Dockerfile,
 
@@ -222,7 +233,6 @@ class BaseImageGenerator(object):
         return build
 
     def build_and_push_to_registry(self, d_build, tag, run=False):
-        tag = 'VM:%s' % tag
         d_build.build(tag)
 
         logging.debug("To run the container execute the following:\n$ docker run -P %s" % tag)
@@ -240,7 +250,7 @@ class BaseImageGenerator(object):
         thinned_vm_size = recursive_size(new_vm_root)
         base_image_size = recursive_size(base_image_root)
         diff_size = recursive_size(self.modified_directory)
-        #logging.debug('VM size: %sMB, Thin VM size: %sMB, Base image size: %sMB, Diff: %sMB', vm_size, thinned_vm_size, base_image_size, diff_size)
+        logging.debug('VM size: %sMB, Thin VM size: %sMB, Base image size: %sMB, Diff: %sMB', vm_size, thinned_vm_size, base_image_size, diff_size)
 
 
 # TODO: make a verify tool that builds the docker file, exports the image, and then does a diff on the resulting filesystem compared to the original VM

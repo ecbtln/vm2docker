@@ -3,6 +3,7 @@ import tempfile
 import os
 import logging
 import json
+import re
 
 
 class DockerFile(object):
@@ -28,10 +29,10 @@ class DockerFile(object):
         self.docker_cmds.extend(cmds)
 
     def add_build_cmd(self, cmd):
-        self.add_build_cmd('RUN %s' % cmd)
+        self.add_docker_cmd('RUN %s' % cmd)
 
     def add_build_cmds(self, cmds):
-        self.add_build_cmds(['RUN %s' % cmd for cmd in cmds])
+        self.add_docker_cmds(['RUN %s' % cmd for cmd in cmds])
 
 
 class DockerBuild(object):
@@ -41,15 +42,29 @@ class DockerBuild(object):
         self.docker_client = docker_client
 
     def serialize(self):
+        contents = self.df.serialize()
+        logging.debug('Serialized Dockerfile:\n%s' % contents)
         with open(os.path.join(self.dir, 'Dockerfile'), 'w') as dockerfile:
-            dockerfile.write(self.df.serialize())
+            dockerfile.write(contents)
 
     def build(self, tag):
         stream = self.docker_client.build(path=self.dir, tag=tag)
         logging.debug('Building %s with tag %s' % (self.dir, tag))
+
+        last_msg = None
         for i in stream:
             y = json.loads(i)
-            logging.debug(y['stream'][:-1])
+            if 'stream' in y:
+                last_msg = y['stream'].strip()
+                logging.debug(last_msg)
+            else:
+                logging.debug(repr(y))
+
+
+        # now extract the image ID
+        m = re.match("Successfully built ([a-z0-9]{12})", last_msg)
+        if m:
+            return m.group(1)
 
 
 class DiffBasedDockerBuild(DockerBuild):
@@ -57,7 +72,7 @@ class DiffBasedDockerBuild(DockerBuild):
     DELETED = 'deleted.txt'
 
     def _diff_cmds(self):
-        return ["ADD %s " % self.CHANGES,
+        return ["ADD %s /" % self.CHANGES,
                 "ADD %s /src/" % self.DELETED,
                 "RUN xargs -d '\\n' -a /src/%s rm -r" % self.DELETED,
                 "RUN rm -rf /src/%s" % self.DELETED]

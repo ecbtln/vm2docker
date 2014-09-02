@@ -13,7 +13,7 @@ if __name__ == '__main__':
     process_pkg_group = parser.add_mutually_exclusive_group()
     process_pkg_group.add_argument('--packages', dest='packages', action='store_true')
     process_pkg_group.add_argument('--no-packages', dest='packages', action='store_false')
-    parser.set_defaults(packages=False)
+    parser.set_defaults(packages=True)
 
     clean_cache_group = parser.add_mutually_exclusive_group()
     clean_cache_group.add_argument('--clean-cache', dest='cache', action='store_true')
