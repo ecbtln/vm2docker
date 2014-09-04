@@ -179,21 +179,35 @@ class BaseImageGenerator(object):
             logging.debug('Generating package manager commands...')
 
             with MultiRootPackageManager(self.base_image_root, new_vm_root, repo, delete_cached_files=self.cache) as m:
-                cmds.extend(m.prepare_vm(read_only=True))
+                package_file, cmds = m.prepare_vm(read_only=True)
+                package_file = "telnet      install"
+                repo_files = m.vm.REPO_FILES
+
+            if package_file is not None and len(cmds) > 0:
+                db = DockerBuild(repo, tag, self.docker_client)
+
+                if repo_files is not None and len(repo_files) > 0:
+                    db.archive(repo_files, new_vm_root, DockerBuild.REPO_INFO)
+
+                package_list_path = os.path.join(db.dir, DockerBuild.PKG_LIST)
+                with open(package_list_path, 'w') as f:
+                    f.write(package_file)
 
 
-            db = DockerBuild(repo, tag, self.docker_client)
-            db.df.add_build_cmds(cmds)
-            db.serialize()
-            id = db.build('packages-only')
+                db.add_file(DockerBuild.PKG_LIST)
 
-            if id is None:
-                raise ValueError("One or more of the commands failed to execute successfully")
-            # once built, we wanna export it and create a diff
-            container_id = self.start_image_and_generate_container_id(id)
-            tar_name = 'packages.tar'
-            abs_tar_path = self.export_container_to_tar(container_id, tar_name)
-            new_vm_root = self.extract_tar(abs_tar_path, 'packages_container')
+                db.df.add_build_cmds(cmds)
+
+                db.serialize()
+                id = db.build('packages-only')
+
+                if id is None:
+                    raise ValueError("One or more of the commands failed to execute successfully")
+                # once built, we wanna export it and create a diff
+                container_id = self.start_image_and_generate_container_id(id)
+                tar_name = 'packages.tar'
+                abs_tar_path = self.export_container_to_tar(container_id, tar_name)
+                new_vm_root = self.extract_tar(abs_tar_path, 'packages_container')
         exit(0)
 
         # put commands in Dockerfile,
@@ -243,7 +257,8 @@ class BaseImageGenerator(object):
 
     def clean_up(self):
         # delete the temporary directory
-        shutil.rmtree(self.temp_dir)
+        #shutil.rmtree(self.temp_dir)
+        pass
 
     def generate_statistics(self, new_vm_root, base_image_root, units='MB'):
         vm_size = recursive_size(self.vm_root)

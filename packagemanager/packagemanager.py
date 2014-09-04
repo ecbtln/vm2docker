@@ -8,6 +8,7 @@ import logging
 from utils import generate_regexp, recursive_size, rm_rf
 from os_helpers import debian
 from dependencygraph import filter_non_dependencies
+from dockerfile import DockerBuild
 
 class ChrootManager(object):
     def __init__(self, root):
@@ -40,6 +41,7 @@ class PackageManager(object):
     __metaclass__ = abc.ABCMeta
     PACKAGE_BLACKLIST = None
     PACKAGE_WHITELIST = None
+    REPO_FILES = None
     CACHED_FILES = {}
 
     def __init__(self, root):
@@ -62,8 +64,6 @@ class PackageManager(object):
         if self.PACKAGE_BLACKLIST is not None:
             regexp = generate_regexp(self.PACKAGE_BLACKLIST)
             installed = [x for x in installed if not regexp.match(x)]
-
-
 
         return installed
 
@@ -124,7 +124,8 @@ class DebianPackageManager(PackageManager):
     For debian-like systems aka Ubuntu
     http://kvz.io/blog/2007/08/03/restore-packages-using-dselectupgrade/
     """
-    #PACKAGE_BLACKLIST = {'friendly-recovery', 'linux-.*', 'libpam.*'}
+    PACKAGE_BLACKLIST = {'linux-.*', 'grub-.*'}
+    REPO_FILES = ['/etc/apt/']
     #PACKAGE_WHITELIST = {'telnet'}
     # use dpkg -r to remove packages one at a time
     # use dpkg -i to install them after downloading with apt-get download pkg_name
@@ -149,6 +150,8 @@ class DebianPackageManager(PackageManager):
 
             logging.debug('After dependency graph, %d packages should be installed' % len(packages))
             logging.debug(packages)
+
+
             return ['apt-get install -y %s' % ' '.join(packages)]
 
     def _uninstall_cmds(self, packages, relative=False):
@@ -159,6 +162,19 @@ class DebianPackageManager(PackageManager):
         else:
             return ['apt-get remove -y %s' % ' '.join(packages)]
             #return ['dpkg -r %s' % (' '.join(packages))]
+
+    @classmethod
+    def install_uninstall(cls, to_install, to_uninstall, path_to_list):
+        """
+        Generate a file that will then be added to the docker image at the given path.
+
+        Return a tuple of the file, and then a list of commands to execute to process this file on the host
+        """
+        cmds = ['apt-get update', 'dpkg --set-selections < %s' % path_to_list, 'apt-get -y dselect-upgrade', 'apt-get clean']
+        p1 = '\n'.join('%s\t\t\tinstall' % x for x in to_install)
+        p2 = '\n'.join('%s\t\t\tdeinstall' % x for x in to_uninstall)
+
+        return '%s\n%s' % (p1, p2), cmds
 
 
 class MultiRootPackageManager(object):
@@ -183,24 +199,26 @@ class MultiRootPackageManager(object):
         to_install = base_installed - vm_installed
         to_uninstall = vm_installed - base_installed
 
-        if not read_only:
-            logging.debug('%d packages to uninstall from the vm clone' % len(to_uninstall))
-            logging.debug('%d packages to install on the vm clone' % len(to_install))
+        # if not read_only:
+        #     logging.debug('%d packages to uninstall from the vm clone' % len(to_uninstall))
+        #     logging.debug('%d packages to install on the vm clone' % len(to_install))
+        #
+        #     # step 1. uninstall packages that are on VM but not on base image
+        #     self.vm.uninstall(to_uninstall)
+        #
+        #     # step 2. install packages that are on base image but not on VM
+        #     self.vm.install(to_install)
+        #
+        #     if self.delete_cached_files:
+        #         logging.debug('VM size before cache purge %dMB' % recursive_size(self.vm.root))
+        #         self.vm.delete_cached_files()
+        #         logging.debug('VM size after cache purge %dMB' % recursive_size(self.vm.root))
+        #
+        # # step 3. return commands to undo the effects
+        # cmds = self.vm._uninstall_cmds(to_install)
+        # cmds.extend(self.vm._install_cmds(to_uninstall))
+        # return cmds
 
-            # step 1. uninstall packages that are on VM but not on base image
-            self.vm.uninstall(to_uninstall)
-
-            # step 2. install packages that are on base image but not on VM
-            self.vm.install(to_install)
-
-            if self.delete_cached_files:
-                logging.debug('VM size before cache purge %dMB' % recursive_size(self.vm.root))
-                self.vm.delete_cached_files()
-                logging.debug('VM size after cache purge %dMB' % recursive_size(self.vm.root))
-
-        # step 3. return commands to undo the effects
-        cmds = self.vm._uninstall_cmds(to_install)
-        cmds.extend(self.vm._install_cmds(to_uninstall))
-        return cmds
+        return self.vm.install_uninstall(to_uninstall, to_install, DockerBuild.path_to_sandbox_item(DockerBuild.PKG_LIST))
 
 
