@@ -180,24 +180,24 @@ class BaseImageGenerator(object):
 
             with MultiRootPackageManager(self.base_image_root, new_vm_root, repo, delete_cached_files=self.cache) as m:
                 package_file, cmds = m.prepare_vm(read_only=True)
-                package_file = "telnet      install"
                 repo_files = m.vm.REPO_FILES
+                clean_cmd = m.vm.clean_cmd()
 
-            if package_file is not None and len(cmds) > 0:
+            if len(cmds) > 0:
                 db = DockerBuild(repo, tag, self.docker_client)
 
                 if repo_files is not None and len(repo_files) > 0:
                     db.archive(repo_files, new_vm_root, DockerBuild.REPO_INFO)
 
-                package_list_path = os.path.join(db.dir, DockerBuild.PKG_LIST)
-                with open(package_list_path, 'w') as f:
-                    f.write(package_file)
+                if package_file is not None:
+                    package_list_path = os.path.join(db.dir, DockerBuild.PKG_LIST)
+                    with open(package_list_path, 'w') as f:
+                        f.write(package_file)
 
-
-                db.add_file(DockerBuild.PKG_LIST)
+                    db.add_file(DockerBuild.PKG_LIST)
 
                 db.df.add_build_cmds(cmds)
-
+                db.df.add_build_cmd(clean_cmd)
                 db.serialize()
                 id = db.build('packages-only')
 
@@ -207,10 +207,14 @@ class BaseImageGenerator(object):
                 container_id = self.start_image_and_generate_container_id(id)
                 tar_name = 'packages.tar'
                 abs_tar_path = self.export_container_to_tar(container_id, tar_name)
-                new_vm_root = self.extract_tar(abs_tar_path, 'packages_container')
-        exit(0)
 
-        # put commands in Dockerfile,
+
+
+
+                self.base_image_root = self.extract_tar(abs_tar_path, 'packages_container')
+                repo = id
+                tag = None
+
 
         # TODO: trash the kernel
 
@@ -221,14 +225,14 @@ class BaseImageGenerator(object):
         with open(self.deleted_list, 'w') as text_file:
             # prepend a '/' to every path, we want these to be absolute paths on the new host
             text_file.write('\n'.join('/' + x for x in self.generate_deletions(self.base_image_root, new_vm_root) if not regexp.match(x)))
-        build = self.create_docker_image(repo, tag, cmds=cmds)
+        build = self.create_docker_image(repo, tag)
         logging.debug('Docker build is now located at: %s' % build.dir)
         self.generate_statistics(new_vm_root, self.base_image_root)
         # now build it
         self.build_and_push_to_registry(build, vm_tag, run_locally)
         # now push it to the registry (local for now)
 
-    def create_docker_image(self, from_repo, from_tag, cmds=None):
+    def create_docker_image(self, from_repo, from_tag):
         build = DiffBasedDockerBuild(from_repo, from_tag, self.docker_client)
 
         # now tar up the modifications and into the directory
@@ -240,7 +244,6 @@ class BaseImageGenerator(object):
         deleted = DiffBasedDockerBuild.DELETED
         os.rename(self.deleted_list, os.path.join(build.dir, deleted))
 
-        build.df.add_build_cmds(cmds)
 
         build.serialize()
 

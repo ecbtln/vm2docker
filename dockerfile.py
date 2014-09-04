@@ -8,13 +8,16 @@ import tarfile
 
 class DockerFile(object):
 
-    def __init__(self, repo, tag):
+    def __init__(self, repo, tag=None):
         self.repo = repo
         self.tag = tag
         self.docker_cmds = []
 
     def _inheritance_line(self):
-        return 'FROM %(repo)s:%(tag)s' % {'repo': self.repo, 'tag': self.tag}
+        beg = 'FROM %s' % self.repo
+        if self.tag is not None:
+            beg += ':%s' % self.tag
+        return beg
 
     def _get_cmds(self):
         return '\n'.join(self.docker_cmds)
@@ -84,6 +87,9 @@ class DockerBuild(object):
         root should be the root of the filesystem upon which files_to_tar is appended
         target_name is a unique file name given to the resulting tar in the docker build folder
         """
+
+
+        # TODO: RSYNC and do a diff. if there are no changes, we can just skip this part of the dockerfile to maximize layering
         for x in virtual_path_to_tar_files:
             assert os.path.isabs(x)
 

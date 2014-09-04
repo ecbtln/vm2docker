@@ -67,40 +67,16 @@ class PackageManager(object):
 
         return installed
 
-    def install(self, packages):
-        cmds = self._install_cmds(packages, relative=True)
-        for cmd in cmds:
-            logging.debug(cmd)
-            out = subprocess.check_output(cmd, shell=True)
-            logging.info(out)
-
-    def uninstall(self, packages):
-        cmds = self._uninstall_cmds(packages, relative=True)
-        for cmd in cmds:
-            logging.debug(cmd)
-            try:
-                output = subprocess.check_output(cmd, shell=True)
-                logging.debug(output)
-            except subprocess.CalledProcessError as e:
-                logging.warning(e)
-
     @abc.abstractmethod
     def _get_installed(self):
-        return []
-
-    # These two abstract methods should be subclassed and return a command to do the following
-    @abc.abstractmethod
-    def _install_cmds(self, packages, relative=False):
-        return []
-
-    @abc.abstractmethod
-    def _uninstall_cmds(self, packages, relative=False):
         return []
 
     @staticmethod
     def package_manager(system):
         if system == 'ubuntu':
             return DebianPackageManager
+        elif system == 'centos':
+            return YumPackageManager
 
     def clean_up(self):
         for f in self.to_clean:
@@ -113,10 +89,38 @@ class PackageManager(object):
         self.clean_up()
         return False
 
+    @abc.abstractmethod
+    def clean_cmd(cls):
+        pass
+
+
+    @abc.abstractmethod
+    def install_uninstall(self, to_install, to_uninstall, path_to_list):
+        pass
+
     def delete_cached_files(self):
         proper_path = (os.path.join(self.root, os.path.relpath(f, '/')) for f in self.CACHED_FILES)
         for f in proper_path:
             rm_rf(f)
+
+
+class YumPackageManager(PackageManager):
+    REPO_FILES = ['/etc/yum.conf', '/etc/yum.repos.d']
+
+    def _get_installed(self):
+        return subprocess.check_output('rpm -qa', shell=True).splitlines()
+
+    def install_uninstall(self, to_install, to_uninstall, path_to_list):
+        cmds = []
+        if len(to_install) > 0:
+            cmds.append('yum -y install %s' % ' '.join(to_install))
+        if len(to_uninstall) > 0:
+            cmds.append('yum -r remove %s' % ' '.join(to_uninstall))
+
+        return None, cmds
+
+    def clean_cmd(self):
+        return 'yum clean all'
 
 
 class DebianPackageManager(PackageManager):
@@ -124,57 +128,40 @@ class DebianPackageManager(PackageManager):
     For debian-like systems aka Ubuntu
     http://kvz.io/blog/2007/08/03/restore-packages-using-dselectupgrade/
     """
-    PACKAGE_BLACKLIST = {'linux-.*', 'grub-.*'}
+    PACKAGE_BLACKLIST = {'linux-.*', 'grub-.*', 'dictionaries-common', 'wbritish'}
     REPO_FILES = ['/etc/apt/']
     #PACKAGE_WHITELIST = {'telnet'}
     # use dpkg -r to remove packages one at a time
     # use dpkg -i to install them after downloading with apt-get download pkg_name
 
-    CACHED_FILES = {'/var/cache/apt/pkgcache.bin', '/var/cache/apt/srcpkgcache.bin'}
+    #CACHED_FILES = {'/var/cache/apt/pkgcache.bin', '/var/cache/apt/srcpkgcache.bin'}
     def _get_installed(self):
         return [x.split()[0] for x in subprocess.check_output('dpkg --get-selections --root=%s | grep -v deinstall' % self.root, shell=True).splitlines()]
-
-    def _install_cmds(self, packages, relative=False):
-        if len(packages) == 0:
-            return []
-        if relative:
-            download_dir = os.path.join(tempfile.mkdtemp(), '')
-            packages_list = ' '.join(packages)
-            return ['cd %s; apt-get download %s' % (download_dir, packages_list),
-                    'dpkg --root=%s -i %s*' % (self.root, download_dir)]
-        else:
-            # now we can filter the packages using a dependency graph!
-            logging.debug('Before dependency graph, %d packages should be installed' % len(packages))
-            logging.debug(packages)
-            packages = filter_non_dependencies(packages, debian.get_dependencies)
-
-            logging.debug('After dependency graph, %d packages should be installed' % len(packages))
-            logging.debug(packages)
-
-
-            return ['apt-get install -y %s' % ' '.join(packages)]
-
-    def _uninstall_cmds(self, packages, relative=False):
-        if len(packages) == 0:
-            return []
-        if relative:
-            return ['dpkg --root=%s -r %s' % (self.root, ' '.join(packages))]
-        else:
-            return ['apt-get remove -y %s' % ' '.join(packages)]
-            #return ['dpkg -r %s' % (' '.join(packages))]
 
     @classmethod
     def install_uninstall(cls, to_install, to_uninstall, path_to_list):
         """
         Generate a file that will then be added to the docker image at the given path.
 
-        Return a tuple of the file, and then a list of commands to execute to process this file on the host
+        Return a tuple of the file contents, and then a list of commands to execute to process this file on the host
         """
-        cmds = ['apt-get update', 'dpkg --set-selections < %s' % path_to_list, 'apt-get -y dselect-upgrade', 'apt-get clean']
+        cmds = ['apt-get update']
+
+        if len(to_install) > 0:
+            cmds.append('apt-get install -y %s' % ' '.join(to_install))
+        if len(to_uninstall) > 0:
+            cmds.append('apt-get remove --purge -y %s' % ' '.join(to_uninstall))
         p1 = '\n'.join('%s\t\t\tinstall' % x for x in to_install)
         p2 = '\n'.join('%s\t\t\tdeinstall' % x for x in to_uninstall)
 
-        return '%s\n%s' % (p1, p2), cmds
+        f = '%s\n%s' % (p1, p2)
+        f = None
+        return f, cmds
+
+
+    @classmethod
+    def clean_cmd(cls):
+        return 'apt-get clean'
 
 
 class MultiRootPackageManager(object):
