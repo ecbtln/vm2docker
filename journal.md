@@ -69,5 +69,15 @@ components!!
 In addition to looking for nodes with in-degree 0, we want to look for strongly connected components with size greater
 than 1.
 
+Ran with 12.04.4 LTS, with and without filtered dependencies verified to be the same
+
+Diff reduced from 894.37 MB to 798.87 MB, (95.5 MB reduction and 195 MB bigger footprint of intermediate image)
+
+
+This brings up the tradeoff of this approach vs the other. Our lineage of layers is going to take up more space than before! :(
+
+Is this acceptable?
+
+I argue yes, but it is worth discussing, because the alternative way of adding packages after does not suffer the same problem
 
 

@@ -149,7 +149,7 @@ class DebianPackageManager(PackageManager):
     For debian-like systems aka Ubuntu
     http://kvz.io/blog/2007/08/03/restore-packages-using-dselectupgrade/
     """
-    PACKAGE_BLACKLIST = {'linux-.*', 'grub-.*', 'dictionaries-common', 'wbritish'}
+    PACKAGE_BLACKLIST = {'linux-.*', 'grub-.*', 'dictionaries-common', 'wbritish', 'console-setup', 'ubuntu-minimal', 'resolvconf', 'kbd'}
     REPO_FILES = ['/etc/apt/']
     #PACKAGE_WHITELIST = {'telnet'}
     # use dpkg -r to remove packages one at a time
