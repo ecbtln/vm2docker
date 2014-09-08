@@ -25,3 +25,49 @@ Resolved to create a different method of outputting the results of an experiment
 written to a file in the /tmp directory and its path is written at the end of debug log to stdout. The logger's name is
 'results' and messages with INFO level and above get sent to this file.
 
+
+Now want to see the results of the filtering dependency logic to see if that works as expected, now that I've got
+something to test it on.
+
+- Running with the Ubuntu 14.04 LTS, 187 packages are cut down to 77 packages.
+
+- But we also lose a few installs, apt-get log shows:
+(from 181 MB to 169 MB), fetching 36.7 MB of archives, as compared to 38.1 MB of archives and 183 packages instead of
+189 packages
+
+Diff becomes:
+
+10516 modifications and additions, 65 deletions
+changes.tar: 957.48MB
+
+as opposed to:
+
+12840 modifications and additions, 69 deletions
+changes.tar: 955.79MB
+
+Missing packages are (perceived to be a dependency of another package, but never installed via apt-get):
+
+language-pack-gnome-en-base
+language-pack-gnome-en
+language-pack-en
+tasksel-data
+tasksel
+language-pack-en-base
+
+now we will do a reverse dependency search and find which packages said they depended on this
+
+it may be because certain packages have dependencies in the host repo (doing the conversion) but not the other?
+
+this is a problem, and i think the only way to fix it would be to make sure to execute the apt-cache depends requests
+in the context of the VM rather than the converting machine. TODO: revisit this problem once we have created a self
+contained version of this that runs directly on the host
+
+Another possible result is the idea cycles in the dependency graph, which I didn't realize was possible but would stem
+from co-dependencies. Looking for nodes with an in-degree of 0 is not sufficient because it misses strongly connected
+components!!
+
+In addition to looking for nodes with in-degree 0, we want to look for strongly connected components with size greater
+than 1.
+
+
+

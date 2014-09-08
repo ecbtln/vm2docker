@@ -8,7 +8,8 @@ import tarfile
 from utils import recursive_size, generate_regexp
 from packagemanager.packagemanager import MultiRootPackageManager
 from dockerfile import DiffBasedDockerBuild, DockerBuild
-from . import RESULTS_LOGGER
+from include import RESULTS_LOGGER
+
 
 class LinuxInfoParser(object):
     def __init__(self, path_to_root):
@@ -35,12 +36,13 @@ class LinuxInfoParser(object):
 
 
 class BaseImageGenerator(object):
-    def __init__(self, vm_root, dclient, process_packages=True, cache=False):
+    def __init__(self, vm_root, dclient, process_packages=True, cache=False, filter_deps=False):
         self.docker_client = dclient
         self.vm_root = os.path.join(os.path.abspath(vm_root), '')  # stupid hack to get the trailing slash
         self.process_packages = process_packages
         self.generate_linux_info()
         self.cache = cache
+        self.filter_deps = filter_deps
 
     def __enter__(self):
         self.temp_dir = tempfile.mkdtemp()
@@ -177,7 +179,7 @@ class BaseImageGenerator(object):
         if self.process_packages:
             logging.debug('Generating package manager commands...')
 
-            with MultiRootPackageManager(self.base_image_root, new_vm_root, repo, delete_cached_files=self.cache) as m:
+            with MultiRootPackageManager(self.base_image_root, new_vm_root, repo, delete_cached_files=self.cache, filter_package_deps=self.filter_deps) as m:
                 package_file, cmds = m.prepare_vm(read_only=True)
                 repo_files = m.vm.REPO_FILES
                 clean_cmd = m.vm.get_clean_cmd()
@@ -239,6 +241,7 @@ class BaseImageGenerator(object):
         tar_file = os.path.join(build.dir, changes)
         subprocess.check_output('tar -C %s -c . -f %s' % (self.modified_directory, tar_file), shell=True)
 
+        logging.getLogger(RESULTS_LOGGER).info('Size of %s: %.2f %s', tar_file, os.path.getsize(tar_file) / (1024.0 * 1024.0), 'MB')
         # move the deleted
         deleted = DiffBasedDockerBuild.DELETED
         os.rename(self.deleted_list, os.path.join(build.dir, deleted))

@@ -7,7 +7,7 @@ from logging import FileHandler
 import argparse
 import tempfile
 import time
-from . import RESULTS_LOGGER
+from include import RESULTS_LOGGER
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='An automated command-line tool to convert virtual machines to layered docker images')
@@ -18,6 +18,11 @@ if __name__ == '__main__':
     process_pkg_group.add_argument('--packages', dest='packages', action='store_true')
     process_pkg_group.add_argument('--no-packages', dest='packages', action='store_false')
     parser.set_defaults(packages=True)
+
+    filter_deps_group = parser.add_mutually_exclusive_group()
+    filter_deps_group.add_argument('--filter-deps', dest='filter_deps', action='store_true')
+    filter_deps_group.add_argument('--no-filter-deps', dest='filter_deps', action='store_false')
+    parser.set_defaults(filter_deps=True)
 
     clean_cache_group = parser.add_mutually_exclusive_group()
     clean_cache_group.add_argument('--clean-cache', dest='cache', action='store_true')
@@ -53,7 +58,7 @@ if __name__ == '__main__':
     vm_root = os.path.abspath(args.vm_root)
     tag_name = args.tag
 
-    with BaseImageGenerator(vm_root, client, process_packages=args.packages, cache=args.cache) as image_gen:
+    with BaseImageGenerator(vm_root, client, process_packages=args.packages, cache=args.cache, filter_deps=args.filter_deps) as image_gen:
         image_gen.generate(tag_name, run_locally=args.run)
 
     logging.debug('Results written to %s' % path)

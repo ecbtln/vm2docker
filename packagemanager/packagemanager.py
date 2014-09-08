@@ -3,12 +3,11 @@ import subprocess
 import abc
 from multiprocessing import Process, Queue
 import os
-import tempfile
 import logging
 from utils import generate_regexp, recursive_size, rm_rf
-from os_helpers import debian
 from dependencygraph import filter_non_dependencies
 from dockerfile import DockerBuild
+
 
 class ChrootManager(object):
     def __init__(self, root):
@@ -130,6 +129,9 @@ class PackageManager(object):
         for f in proper_path:
             rm_rf(f)
 
+    def get_dependencies(self, pkg):
+        return []
+
 
 class YumPackageManager(PackageManager):
     REPO_FILES = ['/etc/yum.conf', '/etc/yum.repos.d']
@@ -163,6 +165,14 @@ class DebianPackageManager(PackageManager):
     def _get_installed(self):
         return [x.split()[0] for x in subprocess.check_output('dpkg --get-selections --root=%s | grep -v deinstall' % self.root, shell=True).splitlines()]
 
+    def get_dependencies(self, pkg):
+        try:
+            output = subprocess.check_output('apt-cache depends %s | grep "Depends:"' % pkg, shell=True)
+        except subprocess.CalledProcessError:
+            return []
+        dependencies = [line.split()[1] for line in output.splitlines()]
+        return dependencies
+
 
 class ZypperPackageManager(PackageManager):
     # TODO fix these
@@ -174,11 +184,12 @@ class ZypperPackageManager(PackageManager):
 
 
 class MultiRootPackageManager(object):
-    def __init__(self, base_image_root, vm_root, os, delete_cached_files=True):
+    def __init__(self, base_image_root, vm_root, os, delete_cached_files=True, filter_package_deps=False):
         cls = PackageManager.package_manager(os)
         self.base_image = cls(base_image_root)
         self.vm = cls(vm_root)
         self.delete_cached_files = delete_cached_files
+        self.filter_pkg_deps = filter_package_deps
 
     def __enter__(self):
         return self
@@ -192,8 +203,17 @@ class MultiRootPackageManager(object):
         base_installed = set(self.base_image.get_installed())
         vm_installed = set(self.vm.get_installed())
 
-        to_install = base_installed - vm_installed
-        to_uninstall = vm_installed - base_installed
+        to_remove = base_installed - vm_installed
+        to_install = vm_installed - base_installed
+
+
+
+        if self.filter_pkg_deps:
+            before_dep_filter = len(to_install)
+            to_install = filter_non_dependencies(to_install, self.vm.get_dependencies)
+            after_dep_filter = len(to_install)
+            logging.debug('Filter by dependency cut down %d packages to %d' % (before_dep_filter, after_dep_filter))
+
 
         # if not read_only:
         #     logging.debug('%d packages to uninstall from the vm clone' % len(to_uninstall))
@@ -215,6 +235,6 @@ class MultiRootPackageManager(object):
         # cmds.extend(self.vm._install_cmds(to_uninstall))
         # return cmds
 
-        return self.vm.install_uninstall(to_uninstall, to_install, DockerBuild.path_to_sandbox_item(DockerBuild.PKG_LIST))
+        return self.vm.install_uninstall(to_install, to_remove, DockerBuild.path_to_sandbox_item(DockerBuild.PKG_LIST))
 
 
