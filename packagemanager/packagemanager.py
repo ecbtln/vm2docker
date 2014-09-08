@@ -42,6 +42,13 @@ class PackageManager(object):
     PACKAGE_BLACKLIST = None
     PACKAGE_WHITELIST = None
     REPO_FILES = None
+
+    INSTALL_CMD_FMT = ''
+    UNINSTALL_CMD_FMT = ''
+    CLEAN_CMD = None
+    RELOAD_REPO_CMD = None
+
+
     CACHED_FILES = {}
 
     def __init__(self, root):
@@ -89,14 +96,34 @@ class PackageManager(object):
         self.clean_up()
         return False
 
-    @abc.abstractmethod
-    def clean_cmd(cls):
-        pass
+    def get_reload_repo_cmd(self):
+        return self.RELOAD_REPO_CMD
 
+    def get_clean_cmd(self):
+        return self.CLEAN_CMD
 
-    @abc.abstractmethod
+    def get_install_cmd_fmt(self):
+        return self.INSTALL_CMD_FMT
+
+    def get_uninstall_cmd_fmt(self):
+        return self.UNINSTALL_CMD_FMT
+
     def install_uninstall(self, to_install, to_uninstall, path_to_list):
-        pass
+        """
+        Generate a file that will then be added to the docker image at the given path.
+
+        Return a tuple of the file contents, and then a list of commands to execute to process this file on the host
+        """
+        cmds = []
+        if self.get_reload_repo_cmd() is not None:
+            cmds.append(self.get_reload_repo_cmd())
+
+        if len(to_install) > 0:
+            cmds.append(self.get_install_cmd_fmt() % ' '.join(to_install))
+        if len(to_uninstall) > 0:
+            cmds.append(self.get_uninstall_cmd_fmt() % ' '.join(to_uninstall))
+        return None, cmds
+
 
     def delete_cached_files(self):
         proper_path = (os.path.join(self.root, os.path.relpath(f, '/')) for f in self.CACHED_FILES)
@@ -106,21 +133,13 @@ class PackageManager(object):
 
 class YumPackageManager(PackageManager):
     REPO_FILES = ['/etc/yum.conf', '/etc/yum.repos.d']
+    CLEAN_CMD = 'yum clean all'
+    INSTALL_CMD_FMT = 'yum -y install %s'
+    UNINSTALL_CMD_FMT = 'yum -r remove %s'
+
 
     def _get_installed(self):
         return subprocess.check_output('rpm -qa', shell=True).splitlines()
-
-    def install_uninstall(self, to_install, to_uninstall, path_to_list):
-        cmds = []
-        if len(to_install) > 0:
-            cmds.append('yum -y install %s' % ' '.join(to_install))
-        if len(to_uninstall) > 0:
-            cmds.append('yum -r remove %s' % ' '.join(to_uninstall))
-
-        return None, cmds
-
-    def clean_cmd(self):
-        return 'yum clean all'
 
 
 class DebianPackageManager(PackageManager):
@@ -134,34 +153,24 @@ class DebianPackageManager(PackageManager):
     # use dpkg -r to remove packages one at a time
     # use dpkg -i to install them after downloading with apt-get download pkg_name
 
+
+    CLEAN_CMD = 'apt-get clean'
+    RELOAD_REPO_CMD = 'apt-get update'
+    INSTALL_CMD_FMT = 'apt-get install -y %s'
+    UNINSTALL_CMD_FMT = 'apt-get remove --purge -y %s'
+
     #CACHED_FILES = {'/var/cache/apt/pkgcache.bin', '/var/cache/apt/srcpkgcache.bin'}
     def _get_installed(self):
         return [x.split()[0] for x in subprocess.check_output('dpkg --get-selections --root=%s | grep -v deinstall' % self.root, shell=True).splitlines()]
 
-    @classmethod
-    def install_uninstall(cls, to_install, to_uninstall, path_to_list):
-        """
-        Generate a file that will then be added to the docker image at the given path.
 
-        Return a tuple of the file contents, and then a list of commands to execute to process this file on the host
-        """
-        cmds = ['apt-get update']
+class ZypperPackageManager(PackageManager):
+    # TODO fix these
+    INSTALL_CMD_FMT = 'zypper install %s'
+    UNINSTALL_CMD_FMT = 'zypper remove %s'
 
-        if len(to_install) > 0:
-            cmds.append('apt-get install -y %s' % ' '.join(to_install))
-        if len(to_uninstall) > 0:
-            cmds.append('apt-get remove --purge -y %s' % ' '.join(to_uninstall))
-        p1 = '\n'.join('%s\t\t\tinstall' % x for x in to_install)
-        p2 = '\n'.join('%s\t\t\tdeinstall' % x for x in to_uninstall)
-
-        f = '%s\n%s' % (p1, p2)
-        f = None
-        return f, cmds
-
-
-    @classmethod
-    def clean_cmd(cls):
-        return 'apt-get clean'
+    def _get_installed(self):
+        return subprocess.check_output('rpm -qa', shell=True).splitlines()
 
 
 class MultiRootPackageManager(object):

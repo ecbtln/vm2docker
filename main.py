@@ -3,7 +3,11 @@ import docker
 import os
 from filesystem import BaseImageGenerator
 import logging
+from logging import FileHandler
 import argparse
+import tempfile
+import time
+from . import RESULTS_LOGGER
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='An automated command-line tool to convert virtual machines to layered docker images')
@@ -27,7 +31,19 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    # configure the root logger to print all debug messages and above
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format='%(message)s')
+
+    results_logger = logging.getLogger(RESULTS_LOGGER)
+
+    # create a temporary file for the log results
+    _handle, path = tempfile.mkstemp(suffix='.txt', prefix='vm2docker__%d' % int(time.time()))
+
+    handler = FileHandler(path)
+    handler.setLevel(logging.INFO)
+    results_logger.addHandler(handler)
+
+
     logging.debug('Starting conversion...')
     assert os.geteuid() == 0
     DOCKER_HOST = os.environ.get('DOCKER_HOST', None)
@@ -39,6 +55,8 @@ if __name__ == '__main__':
 
     with BaseImageGenerator(vm_root, client, process_packages=args.packages, cache=args.cache) as image_gen:
         image_gen.generate(tag_name, run_locally=args.run)
+
+    logging.debug('Results written to %s' % path)
 
 
 

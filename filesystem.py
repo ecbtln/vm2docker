@@ -5,11 +5,10 @@ import logging
 import subprocess
 import tempfile
 import tarfile
-import shutil
 from utils import recursive_size, generate_regexp
 from packagemanager.packagemanager import MultiRootPackageManager
 from dockerfile import DiffBasedDockerBuild, DockerBuild
-
+from . import RESULTS_LOGGER
 
 class LinuxInfoParser(object):
     def __init__(self, path_to_root):
@@ -125,7 +124,7 @@ class BaseImageGenerator(object):
 
     def _generate_deletions_and_modified(self, base_image_root, vm_root):
         deleted_dir = os.path.join(self.temp_dir, 'deleted')
-        os.makedirs(deleted_dir)
+        os.makedirs(deleted_dir) # rlpgoDxH
         cmd = 'rsync -axHAX --compare-dest=%s %s %s' % (vm_root, base_image_root, deleted_dir)
         logging.debug(cmd)
         subprocess.check_output(cmd, shell=True)
@@ -153,7 +152,7 @@ class BaseImageGenerator(object):
             if not os.path.lexists(to_check):
                 #logging.debug('%s: file does not exist' % to_check)
                 deletions.append(candidate)
-        logging.debug('%d modifications and deletions, %d deletions' % (len(deletions_and_modifications), len(deletions)))
+        logging.getLogger(RESULTS_LOGGER).info('Diff between parent and child contains:\n%d modifications and additions, %d deletions' % (len(deletions_and_modifications), len(deletions)))
         return deletions
 
     def generate(self, vm_tag, run_locally=False):
@@ -174,14 +173,14 @@ class BaseImageGenerator(object):
         logging.debug('Cloning VM filesystem to be able to make changes...')
         subprocess.check_output('rsync -axHAX --compare-dest=%s %s %s' % (new_vm_root, self.vm_root, new_vm_root), shell=True)
 
-        cmds = []
+
         if self.process_packages:
             logging.debug('Generating package manager commands...')
 
             with MultiRootPackageManager(self.base_image_root, new_vm_root, repo, delete_cached_files=self.cache) as m:
                 package_file, cmds = m.prepare_vm(read_only=True)
                 repo_files = m.vm.REPO_FILES
-                clean_cmd = m.vm.clean_cmd()
+                clean_cmd = m.vm.get_clean_cmd()
 
             if len(cmds) > 0:
                 db = DockerBuild(repo, tag, self.docker_client)
@@ -244,7 +243,6 @@ class BaseImageGenerator(object):
         deleted = DiffBasedDockerBuild.DELETED
         os.rename(self.deleted_list, os.path.join(build.dir, deleted))
 
-
         build.serialize()
 
         return build
@@ -268,7 +266,7 @@ class BaseImageGenerator(object):
         thinned_vm_size = recursive_size(new_vm_root)
         base_image_size = recursive_size(base_image_root)
         diff_size = recursive_size(self.modified_directory)
-        logging.debug('VM size: %sMB, Thin VM size: %sMB, Base image size: %sMB, Diff: %sMB', vm_size, thinned_vm_size, base_image_size, diff_size)
+        logging.getLogger(RESULTS_LOGGER).info('VM size: %sMB, Thin VM size: %sMB, Base image size: %sMB, Diff: %sMB', vm_size, thinned_vm_size, base_image_size, diff_size)
 
 
 # TODO: make a verify tool that builds the docker file, exports the image, and then does a diff on the resulting filesystem compared to the original VM
