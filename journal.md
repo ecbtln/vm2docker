@@ -132,3 +132,6 @@ Diff 356.81 MB
 
 Added 399 MB to the intermediate image to save a total of 226.73 MB on the diff
 56.8% savings on the package
+
+
+Added in dependency filtering to cut down 162 to 67 packages

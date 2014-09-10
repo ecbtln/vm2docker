@@ -165,6 +165,13 @@ class YumPackageManager(PackageManager):
         return subprocess.check_output('rpm -qa --root=%s --queryformat \'%s\'' % (self.root, '%{NAME}\\n'), shell=True).splitlines()
 
 
+    def get_dependencies(self, pkg):
+        try:
+            output = subprocess.check_output('repoquery --requires --resolve %s --qf %s' % (pkg, '%{NAME}'), shell=True).splitlines()
+        except subprocess.CalledProcessError:
+            return []
+        return list(set(output))
+
 class DebianPackageManager(PackageManager):
     """
     For debian-like systems aka Ubuntu
