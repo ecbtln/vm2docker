@@ -72,6 +72,7 @@ than 1.
 Ran with 12.04.4 LTS, with and without filtered dependencies verified to be the same
 
 Diff reduced from 894.37 MB to 798.87 MB, (95.5 MB reduction and 195 MB bigger footprint of intermediate image)
+48.9% space reductions on the installed packages
 
 
 This brings up the tradeoff of this approach vs the other. Our lineage of layers is going to take up more space than before! :(
@@ -109,3 +110,25 @@ supported in Ubuntu, so adding this option did nothing. In CentOS7, they were su
  Diff: 583.54 MB
 
  % of possible: 67.35%
+
+
+ Now on to package management:
+
+ fixed a bug where I wasn't passing in the root to the VM / base image to the rpm command. That made it think all packages
+ were the same.
+
+ Since RPM provides really in depth and verbose package names / versions, it may make sense to cater to this.
+
+ - Isolate out the package names that are the same
+ - Any packages that are the same, figure out whether upgrade or downgrade is needed
+ - Perform desired operation, or alternatively do nothing, just don't do an unnecessary uninstall then install
+
+
+Install  162 Packages (+1 Dependent package)
+Total download size: 125 M
+Installed size: 399 M
+
+Diff 356.81 MB
+
+Added 399 MB to the intermediate image to save a total of 226.73 MB on the diff
+56.8% savings on the package

@@ -65,10 +65,12 @@ class PackageManager(object):
         # filter out the blacklisted and white listed items
         if self.PACKAGE_WHITELIST is not None:
             regexp = generate_regexp(self.PACKAGE_WHITELIST)
+            logging.debug('Only packages that match %s are allowed' % regexp.pattern)
             installed = [x for x in installed if regexp.match(x)]
 
         if self.PACKAGE_BLACKLIST is not None:
             regexp = generate_regexp(self.PACKAGE_BLACKLIST)
+            logging.debug('Ignoring packages that match %s' % regexp.pattern)
             installed = [x for x in installed if not regexp.match(x)]
 
         return installed
@@ -117,10 +119,11 @@ class PackageManager(object):
         if self.get_reload_repo_cmd() is not None:
             cmds.append(self.get_reload_repo_cmd())
 
-        if len(to_install) > 0:
-            cmds.append(self.get_install_cmd_fmt() % ' '.join(to_install))
         if len(to_uninstall) > 0:
             cmds.append(self.get_uninstall_cmd_fmt() % ' '.join(to_uninstall))
+
+        if len(to_install) > 0:
+            cmds.append(self.get_install_cmd_fmt() % ' '.join(to_install))
         return None, cmds
 
 
@@ -137,11 +140,29 @@ class YumPackageManager(PackageManager):
     REPO_FILES = ['/etc/yum.conf', '/etc/yum.repos.d']
     CLEAN_CMD = 'yum clean all'
     INSTALL_CMD_FMT = 'yum -y install %s'
-    UNINSTALL_CMD_FMT = 'yum -r remove %s'
+    UNINSTALL_CMD_FMT = 'yum erase %s'
 
+    PACKAGE_BLACKLIST = {'systemd.*', 'fakesystemd.*'}
+
+# yum is protected, need to make sure to not remove anything that yum depends on
+#     [root@localhost vm2docker]# repoquery --requires --resolve yum
+# cpio-0:2.11-22.el7.x86_64
+# bash-0:4.2.45-5.el7.x86_64
+# diffutils-0:3.3-4.el7.x86_64
+# diffutils-0:3.3-4.el7.i686
+# python-0:2.7.5-16.el7.x86_64
+# python-iniparse-0:0.4-9.el7.noarch
+# pygpgme-0:0.3-9.el7.x86_64
+# rpm-python-0:4.11.1-16.el7.x86_64
+# yum-metadata-parser-0:1.1.4-10.el7.x86_64
+# pyliblzma-0:0.5.3-11.el7.x86_64
+# rpm-0:4.11.1-16.el7.x86_64
+# pyxattr-0:0.5.1-5.el7.x86_64
+# python-urlgrabber-0:3.10-4.el7.noarch
+# yum-plugin-fastestmirror-0:1.1.31-24.el7.noarch
 
     def _get_installed(self):
-        return subprocess.check_output('rpm -qa', shell=True).splitlines()
+        return subprocess.check_output('rpm -qa --root=%s --queryformat \'%s\'' % (self.root, '%{NAME}\\n'), shell=True).splitlines()
 
 
 class DebianPackageManager(PackageManager):
@@ -180,7 +201,7 @@ class ZypperPackageManager(PackageManager):
     UNINSTALL_CMD_FMT = 'zypper remove %s'
 
     def _get_installed(self):
-        return subprocess.check_output('rpm -qa', shell=True).splitlines()
+        return subprocess.check_output('rpm -qa --root=%s' % self.root, shell=True).splitlines()
 
 
 class MultiRootPackageManager(object):
