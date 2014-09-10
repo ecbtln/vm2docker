@@ -186,6 +186,7 @@ class ZypperPackageManager(PackageManager):
 class MultiRootPackageManager(object):
     def __init__(self, base_image_root, vm_root, os, delete_cached_files=True, filter_package_deps=False):
         cls = PackageManager.package_manager(os)
+        logging.debug('Using class %s for OS; %s' % (repr(cls), os))
         self.base_image = cls(base_image_root)
         self.vm = cls(vm_root)
         self.delete_cached_files = delete_cached_files

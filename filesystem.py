@@ -8,7 +8,7 @@ import tarfile
 from utils import recursive_size, generate_regexp
 from packagemanager.packagemanager import MultiRootPackageManager
 from dockerfile import DiffBasedDockerBuild, DockerBuild
-from include import RESULTS_LOGGER
+from include import RESULTS_LOGGER, RSYNC_OPTIONS
 
 
 class LinuxInfoParser(object):
@@ -120,14 +120,14 @@ class BaseImageGenerator(object):
         self.extract_tar(base_tar_path, self.base_image_root)
 
     def generate_diff(self, base_image_root, vm_root):
-        cmd = 'rsync -axHAX --compare-dest=%s %s %s' % (base_image_root, vm_root, self.modified_directory)
+        cmd = 'rsync %s --compare-dest=%s %s %s' % (RSYNC_OPTIONS, base_image_root, vm_root, self.modified_directory)
         logging.debug(cmd)
         subprocess.check_output(cmd, shell=True)
 
     def _generate_deletions_and_modified(self, base_image_root, vm_root):
         deleted_dir = os.path.join(self.temp_dir, 'deleted')
-        os.makedirs(deleted_dir) # rlpgoDxH
-        cmd = 'rsync -axHAX --compare-dest=%s %s %s' % (vm_root, base_image_root, deleted_dir)
+        os.makedirs(deleted_dir) # rlptgoDxH
+        cmd = 'rsync %s --compare-dest=%s %s %s' % (RSYNC_OPTIONS, vm_root, base_image_root, deleted_dir)
         logging.debug(cmd)
         subprocess.check_output(cmd, shell=True)
         return self._list_all_files_and_folders(deleted_dir)
@@ -173,7 +173,7 @@ class BaseImageGenerator(object):
         # # modify the vm_root path
         new_vm_root = os.path.join(self.temp_dir, 'vm_root', '') # stupid trailing / hack
         logging.debug('Cloning VM filesystem to be able to make changes...')
-        subprocess.check_output('rsync -axHAX --compare-dest=%s %s %s' % (new_vm_root, self.vm_root, new_vm_root), shell=True)
+        subprocess.check_output('rsync %s --compare-dest=%s %s %s' % (RSYNC_OPTIONS, new_vm_root, self.vm_root, new_vm_root), shell=True)
 
 
         if self.process_packages:

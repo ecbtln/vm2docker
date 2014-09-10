@@ -81,3 +81,31 @@ Is this acceptable?
 I argue yes, but it is worth discussing, because the alternative way of adding packages after does not suffer the same problem
 
 
+## September 9
+
+Test on a different OS with different package management tool.
+
+Let's try CentOS 7 and the YUM package management tool
+
+Downloaded 3 different builds:
+
+CentOS7:
+Minimal, DVD, and everything
+
+Initial results show that the diff size is the exact same size as the original VM. Need to debug to figure out why...
+
+## September 10
+
+After removing the X option from rsync (extended attributes), the diff seems to be working again. (phew)
+
+Depending on the OS, there are probably different disk-level attributes that are supported. They were likely not
+supported in Ubuntu, so adding this option did nothing. In CentOS7, they were supported enough such that it didn't think
+ two files were the same when they were, likely because they weren't pointing to the same inode or something like that.
+
+ Preliminary results for CentOS 7 show:
+
+ Original VM: 727 MB
+ Base Image: 213 MB
+ Diff: 583.54 MB
+
+ % of possible: 67.35%
