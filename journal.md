@@ -135,3 +135,66 @@ Added 399 MB to the intermediate image to save a total of 226.73 MB on the diff
 
 
 Added in dependency filtering to cut down 162 to 67 packages
+
+
+## September 11
+
+Brainstorming ways of localizing the conversion process on the host itself.
+
+Running the script on the host itself has the following dependencies:
+
+- Python, pip, rest of the python packages in requirements.txt
+- rsync
+- tar
+- docker client command line
+- Commands used for get_installed and get_dependencies functions, which could be implemented in bash instead of python
+to limit dependencies
+
+
+Making use of Docker for a sandbox-like environment immediately comes to mind
+
+Theoretical design can be a script written in C on host computer.
+
+The C script can listen on a particular socket for RPCs.
+
+The RPCs are stubs that, when hit, should fire off a subprocess (with fork) that performs the desired operation and
+returns the result in the socket.
+
+the desired stubs are:
+
+get_dependencies(pkg)
+- execute the corresponding shell script, depending on the current OS, and return the result as a string
+
+get_filesystem()
+- tar up the entire filesystem and send the resulting tar across the socket
+- might involve an intermediate rsync to a subdirectory if tar doesn't accept our initial command
+- then delete/clean up the results
+
+get_installed()
+- execute the corresponding shell script, depending on the current OS, to get a list of all the packages installed,
+along with their versions and architectures if available
+
+
+some additional stubs for getting the running processes/ bound ports might come into play
+
+
+Finally, we may want the agent to somehow advertise itself to the other server, rather than the other server needing
+to manually pass in the path to the agent. Either approach works.
+
+The agent should bind itself to an unused port so that connections can take place remotely
+
+Pros/Cons:
++ Very few dependencies
++ Most architectures should be able to run the agent natively
+- Central bottleneck still exists because all logic is being executed on central machine
+
+
+Check out this:
+
+https://www.cs.utah.edu/~swalton/listings/sockets/programs/part2/chap6/simple-server.c
+
+as well as the code in 6.858 for the simple web server.
+
+
+
+
