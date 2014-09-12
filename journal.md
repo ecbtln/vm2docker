@@ -196,5 +196,14 @@ https://www.cs.utah.edu/~swalton/listings/sockets/programs/part2/chap6/simple-se
 as well as the code in 6.858 for the simple web server.
 
 
+## September 12
 
+Started the coding for our C-based agent that runs on the host and communicates via a socket connection
+
+
+In the future, we may want a nifty command line argument parser like this one:
+
+https://github.com/hypersoft/nargv
+
+But for now, our commands seem to only need at most one argument, so we'll just do that.
 
