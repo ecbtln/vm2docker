@@ -6,6 +6,7 @@ import json
 import re
 import tarfile
 
+
 class DockerFile(object):
 
     def __init__(self, repo, tag=None):

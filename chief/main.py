@@ -1,13 +1,14 @@
 import sys
-import docker
 import os
-from filesystem import BaseImageGenerator
 import logging
 from logging import FileHandler
 import argparse
 import tempfile
 import time
+import docker
+from filesystem import BaseImageGenerator
 from include import RESULTS_LOGGER
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='An automated command-line tool to convert virtual machines to layered docker images')
