@@ -111,9 +111,8 @@ bool process_cmd(char *cmd, int clientfd) {
 		arg = space + 1;
 		*space = '\0'; // terminate the string so that the cmd string is legit
 	}
-	// TODO: i think the new line character is included in the cmd
 	
-	if (strcmp(cmd, EXIT_CMD) == '\0') {
+	if (strcmp(cmd, EXIT_CMD) == 0) {
 		return false;
 	} else if (strcmp(cmd, GET_DEPS_CMD) == 0) {
 		get_dependencies(arg, clientfd);

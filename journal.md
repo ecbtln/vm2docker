@@ -207,3 +207,10 @@ https://github.com/hypersoft/nargv
 
 But for now, our commands seem to only need at most one argument, so we'll just do that.
 
+## September 15
+
+Use swig as a compiler tool to convert c pre-processor defines to a python file without having to define in more than one spot
+
+http://www.swig.org
+http://stackoverflow.com/a/12147822
+

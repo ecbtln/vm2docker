@@ -52,3 +52,9 @@ coverage.xml
 # Sphinx documentation
 docs/_build/
 
+
+constants/*.so
+constants/*.o
+constants/agent.py
+constants/*_wrap*
+
