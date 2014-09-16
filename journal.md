@@ -214,3 +214,10 @@ Use swig as a compiler tool to convert c pre-processor defines to a python file 
 http://www.swig.org
 http://stackoverflow.com/a/12147822
 
+
+Got it up and running after some difficulty. Hooray for having a single file of definitions that's compatible
+with different languages.
+
+
+For introduction, look into other container technologies such as OpenVZ and parallels and whether or not they exist
+for Windows.
