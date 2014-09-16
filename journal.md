@@ -221,3 +221,5 @@ with different languages.
 
 For introduction, look into other container technologies such as OpenVZ and parallels and whether or not they exist
 for Windows.
+
+## September 16

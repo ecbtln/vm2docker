@@ -5,7 +5,20 @@ RUN pip install docker-py
 RUN pip install networkx
 RUN apt-get install -y rsync curl
 RUN curl -s https://get.docker.io/ubuntu/ | sh
+
+# add sourcecode
 ADD . /src/
-WORKDIR /src/chief
+
+# build products
+WORKDIR /src/agent
+RUN make clean
 RUN make
+
+WORKDIR /src/chief
+RUN make clean
+RUN make
+
 WORKDIR /src/
+
+ENV AGENT_PORT 1024
+EXPOSE 1024

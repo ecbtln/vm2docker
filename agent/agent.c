@@ -10,7 +10,7 @@
 #include <stdbool.h>
 #include "cmds.h"
 
-#define AGENT_PORT	1026
+#define DEFAULT_AGENT_PORT	1024
 
 void process_client(int clientfd, struct sockaddr_in * client_addr);
 bool process_cmd(char *cmd, int clientfd);
@@ -27,7 +27,15 @@ int main(int argc, char *argv[]) {
 
 	memset(&self, 0, sizeof(self));
 	self.sin_family = AF_INET;
-	self.sin_port = htons(AGENT_PORT);
+	char *port_str = getenv("AGENT_PORT");
+	int port;
+	if (port_str == NULL) {
+	    port = DEFAULT_AGENT_PORT;
+	} else {
+	    port = atoi(port_str);
+	}
+	printf("Starting agent on port %d\n", port);
+	self.sin_port = htons(port);
 	self.sin_addr.s_addr = INADDR_ANY;
 
 	/*---Assign a port number to the socket---*/
@@ -66,13 +74,15 @@ int main(int argc, char *argv[]) {
 
 
 void process_client(int clientfd, struct sockaddr_in * client_addr) {
-	char buffer[1024]; // maximum command length is 1024 bytes
+	char buffer[1024]; // maximum command length is 1024 bytes, this should be fine for our uses
 
 	printf("%s:%d connected\n", inet_ntoa(client_addr->sin_addr), ntohs(client_addr->sin_port));
 
 	while (true) {
 		// accept messages indefinitely until the client closes the connection
-		ssize_t msg_sz = recv(clientfd, buffer, 1024, 0);
+		ssize_t msg_sz = recv(clientfd, buffer, 1023, 0);
+		// write a null character at the end of the msg to terminate the string
+		*(buffer + msg_sz) = '\0';
 		if (msg_sz == 0 || !process_cmd(buffer, clientfd)) {
 			printf("%s:%d connection closed\n", inet_ntoa(client_addr->sin_addr), ntohs(client_addr->sin_port));
 			break;
