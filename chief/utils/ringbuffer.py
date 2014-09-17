@@ -1,54 +1,10 @@
-__author__ = 'elubin'
-import os
-import re
-import shutil
-
-def recursive_size(path, divisor=1024*1024):
-    sizeof = os.path.getsize
-    if os.path.isdir(path):
-        # walk it
-        total_size = 0
-        for dirpath, dirnames, filenames in os.walk(path):
-            for fname in filenames:
-                full_path = os.path.join(dirpath, fname)
-                if not os.path.islink(full_path):
-                    total_size += sizeof(full_path)
-        return total_size / divisor
-    else:
-        return sizeof(path) / divisor
-
-
-def generate_regexp(iterable):
-    options = '|'.join(iterable)
-    return re.compile('^(%s)$' % options)
-
-
-def rm_rf(path):
-    if os.path.isdir(path):
-        shutil.rmtree(path)
-    else:
-        os.remove(path)
-
-
-def inheritors(klass):
-    subclasses = set()
-    work = [klass]
-    while work:
-        parent = work.pop()
-        for child in parent.__subclasses__():
-            if child not in subclasses:
-                subclasses.add(child)
-                work.append(child)
-    return subclasses
-
-
-class ringbytearray(bytearray):
+class ringbuffer(bytearray):
     """
     A ring buffer implementation of a bytearray of fixed size
     """
 
     def __init__(self, capacity):
-        super(ringbytearray, self).__init__(capacity)
+        super(ringbuffer, self).__init__(capacity)
 
         # keep track of start and nbytes pointers
         self.start = 0
@@ -64,7 +20,7 @@ class ringbytearray(bytearray):
         """
         The # of bytes we can write to before wrapping around, <= bytes_empty
         """
-        if self.end < self.start:
+        if self.end < self.start or self.end == len(self) - 1:
             return len(self) - self.nbytes
         else:
             return len(self) - self.start - self.nbytes
@@ -72,7 +28,7 @@ class ringbytearray(bytearray):
     @property
     def end(self): # this value is kinda garbage when the ring buffer is empty, just keep in mind
         if self.nbytes == 0:
-            return self.start # garbage value
+            return -1 # garbage value
         return (self.start + self.nbytes - 1) % len(self)
 
     # @property
@@ -80,12 +36,18 @@ class ringbytearray(bytearray):
     #     pass
 
     def __translate_idx(self, idx):
+        # translate from 0 to n - 1 to the actual index in the ringbuffer
+
         if -self.nbytes <= idx < self.nbytes:
             if idx < 0:
                 idx %= self.nbytes
             return (self.start + idx) % len(self)
         else:
             raise IndexError("Index out of range")
+
+    def __translate_back_idx(self, idx):
+        # translate from the idx in the bytearray to the index in the ringbuffer
+        return (idx - self.start) % len(self)
 
     def __setitem__(self, key, value):
         if isinstance(key, slice):
@@ -94,9 +56,9 @@ class ringbytearray(bytearray):
             try:
                 self[self.__translate_idx(key)] = value
             except IndexError:
-                super(ringbytearray, self).__setitem__(key, value)
+                super(ringbuffer, self).__setitem__(key, value)
         else:
-            super(ringbytearray, self).__setitem__(key, value)
+            super(ringbuffer, self).__setitem__(key, value)
 
     def __getitem__(self, item):
         if isinstance(item, slice):
@@ -105,11 +67,11 @@ class ringbytearray(bytearray):
             try:
                 return self[self.__translate_idx(item)]
             except IndexError:
-                super(ringbytearray, self).__getitem__(item)
+                super(ringbuffer, self).__getitem__(item)
         else:
-            super(ringbytearray, self).__getitem__(item)
+            super(ringbuffer, self).__getitem__(item)
 
-    def write_to(self, f, n_bytes):
+    def write_to(self, f, n_bytes=None):
         """
         Write at most n_bytes to the ring buffer
         f is a function that takes in as argument the buffer and the max bytes to write to it, and returns the actual #
@@ -117,8 +79,13 @@ class ringbytearray(bytearray):
 
         returns the # of bytes written to the ringbytearray
         """
-        assert n_bytes <= self.bytes_empty
-        mem = memoryview(self)[self.end + 1:]
+        if n_bytes is None:
+            n_bytes = self.bytes_empty
+        else:
+            n_bytes = min(self.bytes_empty, n_bytes)
+        end = self.end
+        start = (end + 1) % len(self)
+        mem = memoryview(self)[start:]
         n_actual_bytes = f(mem, min(n_bytes, self._contiguous_bytes_free))
         self.nbytes += n_actual_bytes
         return n_actual_bytes
@@ -151,6 +118,9 @@ class ringbytearray(bytearray):
         return output
 
     def find(self, sub, start=None, end=None):
+        if len(sub) == 0:
+            return -1
+
         # TODO: still need to implement
         if self.nbytes == 0:
             return -1
@@ -160,17 +130,49 @@ class ringbytearray(bytearray):
         else:
             start = min(max(0, start), self.nbytes - 1)
         if end is None:
-            end = self.nbytes - 1
+            end = self.nbytes
         else:
-            end = max(min(end, self.nbytes - 1), 0)
+            end = max(min(end, self.nbytes), 0)
+
+        new_start = self.__translate_idx(start)
+        new_end = self.__translate_idx(end - 1) + 1
 
 
-        # TODO: only search between start and end (obviously), aka ignore garbage bytes
-        start = self.__translate_idx(start)
-        end = self.__translate_idx(end)
+        # first try the first half
+        res = super(ringbuffer, self).find(sub, new_start, min(new_start + end, len(self)))
+        if res != -1:
+            return self.__translate_back_idx(res)
+        else:
+            # no luck
+            # check if we should be wrapping around
+            if new_end <= new_start:
+                # try the boarder, then the other half
 
-        return super(ringbytearray, self).find(sub, start, end)
+                if len(sub) > 1:
+                    n = len(sub)
+                    # need to do some special stuff
+                    # take the last n - 1 bytes and the first n - 1 bytes, where n is the length of the delimeter
+                    search_target = bytearray()
+                    tail = memoryview(self)[max(new_start, len(self) - n + 1):]
+                    cap = memoryview(self)[:min(new_end, n - 1)]
+                    search_target.extend(tail)
+                    search_target.extend(cap)
+                    res = search_target.find(sub)
+                    if res != -1:
+                        # translate this idx back
+                        if new_start > len(self) - n + 1:
+                            return self.__translate_back_idx(new_start + res)
+                        else:
+                            return self.__translate_back_idx(len(self) - n + 1 + res)
 
+                # now try the other half
+                res = super(ringbuffer, self).find(sub, 0, new_end)
+                if res != -1:
+                    return self.__translate_back_idx(res)
+                else:
+                    return -1
+            else:
+                return -1
 
     def read_until(self, delimiter):
         """
@@ -179,13 +181,13 @@ class ringbytearray(bytearray):
         """
         idx = self.find(delimiter)
         if idx == -1:
-            return self.read()
+            return self.read(), False
         else:
-            out = self.read((idx - self.start) % len(self))
+            out = self.read(idx)
 
             delim = self.read(len(delimiter))
             assert delim == delimiter
-            return out
+            return out, True
 
 
 

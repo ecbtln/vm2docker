@@ -2,7 +2,8 @@ __author__ = 'elubin'
 
 import socket
 from rpc import ExitCommand, RPCCommand
-from chief.utils import inheritors, ringbytearray
+from chief.utils.utils import inheritors
+from chief.utils.ringbuffer import ringbuffer
 
 
 class CommunicationLayer(object):
@@ -42,7 +43,7 @@ class SocketWrapper(object):
         self.socket_connection = connection
         self.socket_connection.settimeout(self.SOCKET_TIMEOUT)
         self.delimiter = delimiter
-        self.buffer = ringbytearray(self.BUFFER_SIZE)
+        self.buffer = ringbuffer(self.BUFFER_SIZE)
 
     def close(self):
         self.socket_connection.close()
@@ -52,53 +53,17 @@ class SocketWrapper(object):
         Receive a socket response as a string and return the string
         """
 
+        def f(buf, n_bytes):
+            return self.socket_connection.recv_into(buf, n_bytes)
 
-
-
-
-        # start with a memory view that uses what's left of the buffer
-        view = memoryview(self.buffer)[self.nbytes:]
         output = bytearray()
-        while True:
-            nbytes = self.socket_connection.recv_into(view, len(view))
-            just_written = view[:nbytes]
+        found = False
+        while not found:
+            self.buffer.write_to(f)
+            bytes, found = self.buffer.read_until(self.delimiter)
+            output.extend(bytes)
 
-            idx_of_null = len(self.buffer)
-            for i, x in enumerate(just_written):
-                if x == self.delimiter:
-                    idx_of_null = i + self.nbytes
-
-
-            self.nbytes += nbytes
-
-            if self.nbytes == len(self.buffer):
-                to_append = memoryview(self.buffer)[:idx_of_null] # not including the null character
-                output.extend(to_append)  # copy the buffer into the output
-
-
-                self.nbytes = len(self.buffer) - idx_of_null # reset the nbytes pointer
-
-                if idx_of_null != len(self.buffer):
-                    self.buffer[:len(self.buffer) - idx_of_null - 1] = self.buffer[idx_of_null + 1:]
-                    return output
-                else:
-                    view = memoryview(self.buffer)
-            else:
-                # the buffer isn't full
-                # instead we still need to scan for null and only if we find it do we do anything
-                if idx_of_null == len(self.buffer):
-                    view = view[nbytes:]
-                    self.nbytes += nbytes
-                else:
-                    to_append = memoryview(self.buffer)[:idx_of_null]
-                    output.extend(to_append)
-
-                    self.buffer[:len(self.buffer) - idx_of_null - 1] = self.buffer[idx_of_null + 1:]
-                    self.nbytes = len(self.buffer) - idx_of_null
-                    return output
-
-
-
+        return str(output)
 
 
     def recv_file(self):

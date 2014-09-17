@@ -64,34 +64,6 @@ class RPCCommand(object):
 
         return self.handle_response(out)
 
-        # self.socket.recv()
-        # view = memoryview(self.buf)
-        # tbytes = 0
-        # while True:
-        #     nbytes = self.socket.recv_into(view, BUFFER_SIZE - tbytes)
-        #     tbytes += nbytes
-        #     if tbytes != BUFFER_SIZE and view[nbytes - 1] == '\x00':
-        #         # if we didn't receive a full buffer and the last byte we received was null then stop to interpret
-        #         # the message
-        #         break
-        #     elif tbytes != BUFFER_SIZE:
-        #         # we didn't get a full buffer, keep on receiving until we do or the last byte is NULL
-        #         view = view[nbytes:]
-        #     else:
-        #         # buffer is full
-        #         # time to create a new buffer and try again
-        #         pass
-        #
-        #
-        #
-        # if nbytes != BUFFER_SIZE and
-        # if 0 in self.buf:
-        #     # check whether we got the null character
-        # response = self.socket.recv(BUFFER_SIZE)
-        # # TODO: check whether there is more to receive or we are done, then do something with the data such as append to a file and repeat
-        #
-        # return self.handle_response(response)
-
 
 class ExitCommand(RPCCommand):
     COMMAND = EXIT_CMD
