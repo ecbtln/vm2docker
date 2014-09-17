@@ -48,6 +48,9 @@ class SocketWrapper(object):
     def close(self):
         self.socket_connection.close()
 
+    def send(self, msg):
+        self.socket_connection.sendall(msg)
+
     def recv(self):
         """
         Receive a socket response as a string and return the string

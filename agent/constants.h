@@ -1,3 +1,5 @@
+#define SEND_FILE_HEADER_FMT "Size: %lu, Filename: %s"
+
 // commands
 #define GET_DEPS_CMD 		"get_dependencies"
 #define GET_FS_CMD 			"get_filesystem"

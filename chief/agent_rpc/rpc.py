@@ -2,7 +2,6 @@ __author__ = 'elubin'
 from chief.constants.agent import EXIT_CMD, GET_DEPS_CMD, GET_FS_CMD, GET_INSTALLED_CMD
 
 
-
 class RPCCommand(object):
     """
     Each subclass will be responsible for handling the behavior of a given RPC command
@@ -46,7 +45,7 @@ class RPCCommand(object):
         """
         assert len(kwargs) == 0
         assert len(args) >= self.N_ARGS
-        self.socket.sendall(self.format_cmd(self.COMMAND, *args))
+        self.socket.send(self.format_cmd(self.COMMAND, *args))
 
         # block until the socket is ready for reading:
 

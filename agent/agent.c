@@ -123,17 +123,23 @@ bool process_cmd(char *cmd, int clientfd) {
 	}
 	
 	if (strcmp(cmd, EXIT_CMD) == 0) {
+	    char * empty = "";
+	    send(clientfd, empty, 1, 0);
 		return false;
 	} else if (strcmp(cmd, GET_DEPS_CMD) == 0) {
-		get_dependencies(arg, clientfd);
+	    if (arg == NULL) {
+	        perror("expected argument with get dependencies");
+	    } else {
+	        get_dependencies(arg, clientfd);
+	    }
 	} else if (strcmp(cmd, GET_FS_CMD) == 0) {
 		get_filesystem(clientfd);
 	} else if(strcmp(cmd, GET_INSTALLED_CMD) == 0) {
 		get_installed(clientfd);
 	} else {
-		char * unknown = UNKNOWN_CMD "\n";
+		char * unknown = UNKNOWN_CMD;
 		int len = strlen(unknown);
-		send(clientfd, unknown, len, 0);
+		send(clientfd, unknown, len + 1, 0);
 	}
 
 	
