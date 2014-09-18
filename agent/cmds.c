@@ -5,31 +5,23 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <sys/sendfile.h>
+#include <stdlib.h>
+#include <stdbool.h>
 
 #define _FILE_OFFSET_BITS 64
 #include <sys/types.h>
 #include <sys/stat.h>
+
 #include "cmds.h"
+#include "os.h"
 
-uint64_t file_size( char * filename );
 
-void get_dependencies(char *pkg, int clientfd) {
-    char buffer[1000];
-    strcpy(buffer, pkg);
-    int n = strlen(pkg);
-    buffer[n] = '\n';
-    buffer[n+1] = '\n';
-    char *msg = "pkg1\npkg2\npkg3\npkg4\n";
+#define POPEN_BUFFER_SIZE 1024
 
-    strcpy(buffer + n + 2, msg);
-    int total = n + 2 + strlen(msg);
-    buffer[total] = '\0';
-    printf("%s\n", buffer);
-    send_msg(clientfd, buffer);
-}
+void send_msg(int clientfd, char *msg);
+void exec_and_send(int clientfd, char *cmd);
 
 void get_filesystem(int clientfd) {
-    // TODO: consider using the sendfile system call!
     // http://man7.org/linux/man-pages/man2/sendfile.2.html
 
     // first, send the file header
@@ -60,9 +52,47 @@ void get_filesystem(int clientfd) {
 }
 
 void get_installed(int clientfd) {
-
+    char *cmd = get_installed_cmd();
+    exec_and_send(clientfd, cmd);
+    free(cmd);
 }
 
+void get_dependencies(char *pkg, int clientfd) {
+    char *cmd = get_dependencies_cmd(pkg);
+    exec_and_send(clientfd, cmd);
+    free(cmd);
+}
+
+void exec_and_send(int clientfd, char *cmd) {
+    FILE *cmd_result = popen(cmd, "r");
+    char buffer[POPEN_BUFFER_SIZE];
+    int nbytes = 0;
+
+    bool eof = false;
+    // this will skip the error case that would break stuff if the popen command printed nothing
+    *buffer = '\0';
+
+    while (!eof) {
+        // continue reading until the end of the file
+        while (nbytes < POPEN_BUFFER_SIZE) {
+            // continue writing to the buffer until it is full (or the end of file occurs)
+            char *str = fgets(buffer + nbytes, POPEN_BUFFER_SIZE - nbytes, cmd_result);
+            nbytes += strlen(str);
+            if (str == NULL) {
+                // we reached the end of file
+                eof = true;
+                break;
+            }
+        }
+        // buffer is full, send it on over the socket and repeat
+        send(clientfd, buffer, strlen(buffer), 0);
+        nbytes = 0;
+        // don't send a null terminator yet, we'll do that at the end
+    }
+    // null terminate the string
+    send(clientfd, "\0", 1, 0);
+    pclose(cmd_result);
+}
 
 void send_msg(int clientfd, char *msg) {
     printf("Writing to Socket: %s\n", msg);

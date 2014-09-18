@@ -223,3 +223,19 @@ For introduction, look into other container technologies such as OpenVZ and para
 for Windows.
 
 ## September 16
+
+Started socket logic for buffering results
+
+
+## September 17
+
+Finished ringbuffer, implemented some tests, started logic on C-side of things
+
+
+## September 18
+
+Plan to support multiple OS's:
+
+Have a get_dependencies_cmd function and a get_installed_cmd function that are included in during compile time
+depending on which OS we are compiling for
+

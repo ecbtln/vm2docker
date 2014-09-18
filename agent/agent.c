@@ -72,15 +72,16 @@ int main(int argc, char *argv[]) {
 }
 
 
+#define CMD_BUFFER 1024
 
 void process_client(int clientfd, struct sockaddr_in * client_addr) {
-	char buffer[1024]; // maximum command length is 1024 bytes, this should be fine for our uses
+	char buffer[CMD_BUFFER]; // maximum command length is 1024 bytes, this should be fine for our uses
 
 	printf("%s:%d connected\n", inet_ntoa(client_addr->sin_addr), ntohs(client_addr->sin_port));
 
 	while (true) {
 		// accept messages indefinitely until the client closes the connection
-		ssize_t msg_sz = recv(clientfd, buffer, 1023, 0);
+		ssize_t msg_sz = recv(clientfd, buffer, CMD_BUFFER - 1, 0);
 		// write a null character at the end of the msg to terminate the string
 		*(buffer + msg_sz) = '\0';
 		if (msg_sz == 0 || !process_cmd(buffer, clientfd)) {

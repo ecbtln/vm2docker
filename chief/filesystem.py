@@ -5,7 +5,7 @@ import logging
 import subprocess
 import tempfile
 import tarfile
-from utils import recursive_size, generate_regexp
+from utils.utils import recursive_size, generate_regexp
 from packagemanager.packagemanager import MultiRootPackageManager
 from dockerfile import DiffBasedDockerBuild, DockerBuild
 from include import RESULTS_LOGGER, RSYNC_OPTIONS

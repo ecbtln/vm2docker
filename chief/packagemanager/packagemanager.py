@@ -5,7 +5,7 @@ from multiprocessing import Process, Queue
 import os
 import logging
 
-from utils import generate_regexp, rm_rf
+from utils.utils import generate_regexp, rm_rf
 from chief.packagemanager.dependencygraph import filter_non_dependencies
 from chief.dockerfile import DockerBuild
 
