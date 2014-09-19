@@ -65,6 +65,9 @@ void get_dependencies(char *pkg, int clientfd) {
 
 void exec_and_send(int clientfd, char *cmd) {
     FILE *cmd_result = popen(cmd, "r");
+    printf("EXEC_AND_SEND_OUTPUT: %s\n", cmd);
+
+    // TODO: redirect stderr to stdout
     char buffer[POPEN_BUFFER_SIZE];
     int nbytes = 0;
 
@@ -74,15 +77,16 @@ void exec_and_send(int clientfd, char *cmd) {
 
     while (!eof) {
         // continue reading until the end of the file
-        while (nbytes < POPEN_BUFFER_SIZE) {
+        // since the string is null-terminated by fgets, we want to fill the buffer up to the last character
+        while (nbytes < POPEN_BUFFER_SIZE - 1) {
             // continue writing to the buffer until it is full (or the end of file occurs)
             char *str = fgets(buffer + nbytes, POPEN_BUFFER_SIZE - nbytes, cmd_result);
-            nbytes += strlen(str);
             if (str == NULL) {
                 // we reached the end of file
                 eof = true;
                 break;
             }
+            nbytes += strlen(str);
         }
         // buffer is full, send it on over the socket and repeat
         send(clientfd, buffer, strlen(buffer), 0);
