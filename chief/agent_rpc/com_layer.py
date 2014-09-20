@@ -2,8 +2,12 @@ __author__ = 'elubin'
 
 import socket
 from rpc import ExitCommand, RPCCommand
+from chief.constants.agent import SEND_FILE_HEADER_FMT
 from chief.utils.utils import inheritors
 from chief.utils.ringbuffer import ringbuffer
+import re
+import tempfile
+import os
 
 
 class CommunicationLayer(object):
@@ -74,6 +78,25 @@ class SocketWrapper(object):
         Parse the socket response for the string detailing how many bytes are in the file, then write the file
         to disk and return a path to it
         """
-        pass
+        header = self.recv()
+        regex_pattern = SEND_FILE_HEADER_FMT % ("([0-9]+)", r'([\w\.])')
+        m = re.match(regex_pattern, header)
+        assert m is not None
+        nbytes, filename = m.group(1, 2)
+
+        def write_data(buf, n_bytes):
+            self.socket_connection.recv_into(buf, n_bytes)
+
+        bytes_received = 0
+        temp_dir = tempfile.mkdtemp()
+        target = os.path.join(temp_dir, filename)
+        with open(target, 'wb') as f:
+            while bytes_received < nbytes:
+                bytes_received += self.buffer.write_to(write_data, nbytes - bytes_received)
+                data = self.buffer.read(nbytes - bytes_received)
+                f.write(data)
+
+        return '%d bytes saved to %s' % (nbytes, target)
+
 
 

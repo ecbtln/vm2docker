@@ -80,6 +80,8 @@ void process_client(int clientfd, struct sockaddr_in * client_addr) {
 	printf("%s:%d connected\n", inet_ntoa(client_addr->sin_addr), ntohs(client_addr->sin_port));
 
 	while (true) {
+	    // TODO: consider a ring buffer here also that reads indefinitely until the "/r/n" sequence
+
 		// accept messages indefinitely until the client closes the connection
 		ssize_t msg_sz = recv(clientfd, buffer, CMD_BUFFER - 1, 0);
 		// write a null character at the end of the msg to terminate the string

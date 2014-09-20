@@ -1,4 +1,6 @@
-#define SEND_FILE_HEADER_FMT "Size: %lu, Filename: %s"
+// size is technically an unsigned long (%lu), but we make it %s for portability with the python
+// regular expression side of things
+#define SEND_FILE_HEADER_FMT "Size: %s, Filename: %s"
 
 // commands
 #define GET_DEPS_CMD 		"get_dependencies"

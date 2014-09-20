@@ -111,7 +111,6 @@ class ringbuffer(bytearray):
             self.nbytes -= n
             self.start = (self.start + n) % len(self)
 
-
         if self.nbytes == 0:
             # if there are 0 bytes in the ring buffer, reset the pointer to the beginning
             self.start = 0

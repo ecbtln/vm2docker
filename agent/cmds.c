@@ -25,13 +25,17 @@ void get_filesystem(int clientfd) {
     // http://man7.org/linux/man-pages/man2/sendfile.2.html
 
     // first, send the file header
-    char buffer[1000];
+    const int buff_size = 1000;
+    char buffer[buff_size]; // TODO:, don't need this big buffer
+    char temp_buffer[buff_size];
     char *fmt_str = SEND_FILE_HEADER_FMT;
 
 
     off_t nbytes = 1000;
     char *filename = "filesystem.tar.gz";
-    sprintf(buffer, fmt_str, nbytes, filename);
+    // First, convert the %s to their correct modifiers
+    snprintf(buffer, buff_size, fmt_str, "%lu", "%s");
+    snprintf(temp_buffer, buff_size, buffer, nbytes, filename);
     send_msg(clientfd, buffer);
 
 
