@@ -1,5 +1,5 @@
 __author__ = 'elubin'
-
+import logging
 import socket
 from rpc import ExitCommand, RPCCommand
 from chief.constants.agent import SEND_FILE_HEADER_FMT
@@ -41,7 +41,7 @@ class SocketWrapper(object):
     Helper subclass that facilitates buffered reading of sockets with a specified byte-delimiter
     """
     BUFFER_SIZE = 4096
-    SOCKET_TIMEOUT = 5.0
+    SOCKET_TIMEOUT = 120.0  # seems reasonable timeout to allow for long-running commands
 
     def __init__(self, connection, delimiter='\x00'):
         self.socket_connection = connection
@@ -66,12 +66,14 @@ class SocketWrapper(object):
         output = bytearray()
         found = False
         while not found:
-            self.buffer.write_to(f)
+            # read from the ring buffer first to clear out anything still sitting there
             bytes, found = self.buffer.read_until(self.delimiter)
             output.extend(bytes)
+            if not found:
+                self.buffer.write_to(f)
+
 
         return str(output)
-
 
     def recv_file(self):
         """
@@ -79,22 +81,31 @@ class SocketWrapper(object):
         to disk and return a path to it
         """
         header = self.recv()
-        regex_pattern = SEND_FILE_HEADER_FMT % ("([0-9]+)", r'([\w\.])')
+        regex_pattern = SEND_FILE_HEADER_FMT % ("([0-9]+)", r'([\w\.]+)')
         m = re.match(regex_pattern, header)
         assert m is not None
         nbytes, filename = m.group(1, 2)
+        nbytes = int(nbytes)
 
         def write_data(buf, n_bytes):
-            self.socket_connection.recv_into(buf, n_bytes)
+            return self.socket_connection.recv_into(buf, n_bytes)
 
         bytes_received = 0
+        bytes_read_from_buffer = 0
         temp_dir = tempfile.mkdtemp()
         target = os.path.join(temp_dir, filename)
         with open(target, 'wb') as f:
-            while bytes_received < nbytes:
-                bytes_received += self.buffer.write_to(write_data, nbytes - bytes_received)
-                data = self.buffer.read(nbytes - bytes_received)
+            while bytes_read_from_buffer < nbytes:
+                # read from the buffer first to clear out anything that's sitting in there
+                data = self.buffer.read(nbytes - bytes_read_from_buffer)
+                bytes_read_from_buffer += len(data)
+                nbytes_received = self.buffer.write_to(write_data, nbytes - bytes_read_from_buffer)
+                # read as many bytes as we can (the read from the ringbuffer will happen on the next loop)
+                bytes_received += nbytes_received
                 f.write(data)
+            # These may not be equal because the previous time we read from the socket into the ring buffer, we likely
+            # got extra data that's still sitting there.
+            assert bytes_received <= bytes_read_from_buffer
 
         return '%d bytes saved to %s' % (nbytes, target)
 

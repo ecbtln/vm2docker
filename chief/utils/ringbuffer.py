@@ -79,6 +79,9 @@ class ringbuffer(bytearray):
 
         returns the # of bytes written to the ringbytearray
         """
+        if n_bytes == 0:
+            return 0
+
         if n_bytes is None:
             n_bytes = self.bytes_empty
         else:
@@ -112,7 +115,7 @@ class ringbuffer(bytearray):
             self.start = (self.start + n) % len(self)
 
         if self.nbytes == 0:
-            # if there are 0 bytes in the ring buffer, reset the pointer to the beginning
+            # if there are 0 bytes left in the ring buffer, reset the pointer to the beginning
             self.start = 0
         return output
 
@@ -135,7 +138,6 @@ class ringbuffer(bytearray):
 
         new_start = self.__translate_idx(start)
         new_end = self.__translate_idx(end - 1) + 1
-
 
         # first try the first half
         res = super(ringbuffer, self).find(sub, new_start, min(new_start + end, len(self)))

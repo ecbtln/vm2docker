@@ -8,7 +8,7 @@ char * get_installed_cmd() {
     char *c = "dpkg --get-selections | grep -v deinstall";
     const int len = strlen(c) + 1;
     char *cmd = malloc(len);
-    strcpy(cmd, c, len);
+    strncpy(cmd, c, len);
     return cmd;
 }
 

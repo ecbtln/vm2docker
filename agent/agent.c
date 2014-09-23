@@ -136,7 +136,7 @@ bool process_cmd(char *cmd, int clientfd) {
 	        get_dependencies(arg, clientfd);
 	    }
 	} else if (strcmp(cmd, GET_FS_CMD) == 0) {
-		get_filesystem(clientfd);
+		get_filesystem(arg, clientfd);
 	} else if(strcmp(cmd, GET_INSTALLED_CMD) == 0) {
 		get_installed(clientfd);
 	} else {

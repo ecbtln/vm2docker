@@ -17,41 +17,68 @@
 
 
 #define POPEN_BUFFER_SIZE 1024
+#define FILESYSTEM_NAME "filesystem.tar.gz"
 
 void send_msg(int clientfd, char *msg);
 void exec_and_send(int clientfd, char *cmd);
 
-void get_filesystem(int clientfd) {
+void get_filesystem(char *compression, int clientfd) {
     // http://man7.org/linux/man-pages/man2/sendfile.2.html
+    // allow the caller to specify any other arguments to the char command (used for compression)
+    // i'm well aware a malicious user could pass in a semicolon and execute an arbitrary command
+    // for now, we don't care
+
+
+    char *filename = FILESYSTEM_NAME;
+    // 1: tar up the filesystem
+
+    char *cmd = "tar -C / --exclude=sys --exclude=proc -c . %s -f %s";
+
+    int cmd_length = strlen(cmd) + strlen(filename);
+    if (compression != NULL) {
+        cmd_length += strlen(compression);
+    }
+    char *formatted_cmd = malloc(cmd_length);
+
+    if (compression == NULL) {
+        compression = "";
+    }
+    snprintf(formatted_cmd, cmd_length, cmd, compression, filename);
+
+    printf("EXEC: %s\n", formatted_cmd);
+    int ret = system(formatted_cmd);
+    if (ret != 0) {
+        perror("Error: Unable to create filesystem archive");
+    }
+    free(formatted_cmd);
+
 
     // first, send the file header
     const int buff_size = 1000;
     char buffer[buff_size]; // TODO:, don't need this big buffer
-    char temp_buffer[buff_size];
+    char final_buffer[buff_size];
     char *fmt_str = SEND_FILE_HEADER_FMT;
 
 
-    off_t nbytes = 1000;
-    char *filename = "filesystem.tar.gz";
+    off_t nbytes;
     // First, convert the %s to their correct modifiers
     snprintf(buffer, buff_size, fmt_str, "%lu", "%s");
-    snprintf(temp_buffer, buff_size, buffer, nbytes, filename);
-    send_msg(clientfd, buffer);
+
 
 
     // now, send the file
-    char * from_file = "/src/filesystem.tar.gz";
-    int fd = open(from_file, O_RDONLY);
+    int fd = open(filename, O_RDONLY);
     struct stat st;
 
     fstat(fd, &st);
     nbytes = st.st_size;
+    // TODO: does this work for big files
+    snprintf(final_buffer, buff_size, buffer, nbytes, filename);
+    send_msg(clientfd, final_buffer);
 
 
     int n_sent = sendfile(clientfd, fd, NULL, nbytes);
-    if (n_sent != nbytes) {
-        printf("Only %d/%zd bytes sent successfully", n_sent, nbytes);
-    }
+    printf("Sent %d/%zd bytes successfully\n", n_sent, nbytes);
     close(fd);
 }
 
