@@ -4,7 +4,8 @@ RUN apt-get install -y python python-pip python-dev swig
 RUN pip install docker-py
 RUN pip install networkx
 RUN apt-get install -y rsync curl
-RUN curl -s https://get.docker.io/ubuntu/ | sh
+RUN curl -s https://get.docker.io/builds/Linux/x86_64/docker-latest -o /usr/local/bin/docker
+RUN chmod +x /usr/local/bin/docker
 RUN apt-get install -y gdb # (for debugging)
 
 # add sourcecode

@@ -1,46 +1,12 @@
 __author__ = 'elubin'
 
 import abc
-from multiprocessing import Process, Queue
-import os
 import logging
 
 from utils.utils import generate_regexp, rm_rf
 from dependencygraph import filter_non_dependencies
-from dockerfile import DockerBuild
+from dockerfile import DockerBuild, DockerFile
 import constants.agent
-from dockerfile import DockerFile
-
-
-# TODO: we need to execute the get_installed within docker itself in a command and get the results
-# TODO: consider how we are going to handle having to have the installed command in both C and Python
-# potentially use swig!
-
-class ChrootManager(object):
-    def __init__(self, root):
-        self.root = root
-        self.queue = Queue(1)
-
-    # TODO: convert to the with format, so we could do with change_root(root) as root: do some commands
-    def call(self, f, *args, **kwargs):
-        def wrapped_f(*args, **kwargs):
-            try:
-                os.chdir(self.root)
-                os.chroot('.')
-            except OSError as e:
-                self.queue.put(e)
-            try:
-                output = f(*args, **kwargs)
-                self.queue.put(output)
-            except Exception as e:
-                self.queue.put(e)
-        p = Process(target=wrapped_f, args=args, kwargs=kwargs)
-        p.start()
-        result = self.queue.get()
-        if isinstance(result, OSError):
-            raise result
-        p.join()
-        return result
 
 
 class PackageManager(object):
@@ -64,11 +30,6 @@ class PackageManager(object):
         self.image_repo_tag = image_repo_tag
         self.docker_client = docker_client
 
-    # def _exec_in_jail(self, cmds):
-    #     if len(cmds) == 0:
-    #         return
-    #     f = lambda: [subprocess.check_output(cmd, shell=True) for cmd in cmds]
-    #     return ChrootManager(self.root).call(f)
 
     def get_installed(self):
         installed = self._get_installed()
@@ -91,10 +52,11 @@ class PackageManager(object):
         else:
             assert self.docker_client is not None
             repo, tag = self.image_repo_tag
-            build = DockerBuild(repo, tag, self.docker_client)
-            res = self.docker_client.create_container(build, command=self._get_installed_cmd())
+            parent = DockerFile.format_image_name(repo, tag)
+            res = self.docker_client.create_container(parent, command=self._get_installed_cmd())
             container_id = res['Id']
-            # TODO: wait till command complete??
+            self.docker_client.start(res)
+            assert self.docker_client.wait(res) == 0  # wait until command completes
             installed = self.docker_client.logs(container_id)
         return self._process_get_installed(installed)
 

@@ -21,6 +21,7 @@
 // that are installed directly in the base image
 // we'll establish the convention of <OS_NAME>__GET_INSTALLED_CMD as the name of the cmd
 
+// TODO: we need to remove the pipe from these commands, as they are incompatible with docker commands
 #define UBUNTU__GET_INSTALLED_CMD "dpkg --get-selections | grep -v deinstall"
 
 
