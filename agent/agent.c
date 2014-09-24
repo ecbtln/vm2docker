@@ -10,8 +10,6 @@
 #include <stdbool.h>
 #include "cmds.h"
 
-#define DEFAULT_AGENT_PORT	1024
-
 void process_client(int clientfd, struct sockaddr_in * client_addr);
 bool process_cmd(char *cmd, int clientfd);
 

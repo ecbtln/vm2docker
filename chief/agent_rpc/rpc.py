@@ -1,5 +1,5 @@
 __author__ = 'elubin'
-from chief.constants.agent import EXIT_CMD, GET_DEPS_CMD, GET_FS_CMD, GET_INSTALLED_CMD
+from constants.agent import EXIT_CMD, GET_DEPS_CMD, GET_FS_CMD, GET_INSTALLED_CMD
 
 
 class RPCCommand(object):

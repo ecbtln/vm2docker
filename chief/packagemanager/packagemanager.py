@@ -1,14 +1,20 @@
 __author__ = 'elubin'
-import subprocess
+
 import abc
 from multiprocessing import Process, Queue
 import os
 import logging
 
 from utils.utils import generate_regexp, rm_rf
-from chief.packagemanager.dependencygraph import filter_non_dependencies
-from chief.dockerfile import DockerBuild
+from dependencygraph import filter_non_dependencies
+from dockerfile import DockerBuild
+import constants.agent
+from dockerfile import DockerFile
 
+
+# TODO: we need to execute the get_installed within docker itself in a command and get the results
+# TODO: consider how we are going to handle having to have the installed command in both C and Python
+# potentially use swig!
 
 class ChrootManager(object):
     def __init__(self, root):
@@ -47,13 +53,16 @@ class PackageManager(object):
     UNINSTALL_CMD_FMT = ''
     CLEAN_CMD = None
     RELOAD_REPO_CMD = None
+    OS_NAME = None
 
 
     CACHED_FILES = {}
 
-    def __init__(self, root):
-        self.root = root
-        self.to_clean = []
+    def __init__(self, vm_socket, image_repo_tag=None, docker_client=None):
+        assert vm_socket is not None or image_repo_tag is not None
+        self.vm_socket = vm_socket
+        self.image_repo_tag = image_repo_tag
+        self.docker_client = docker_client
 
     # def _exec_in_jail(self, cmds):
     #     if len(cmds) == 0:
@@ -76,9 +85,25 @@ class PackageManager(object):
 
         return installed
 
-    @abc.abstractmethod
     def _get_installed(self):
-        return []
+        if self.vm_socket is not None:
+            installed = self.vm_socket.get_installed()
+        else:
+            assert self.docker_client is not None
+            repo, tag = self.image_repo_tag
+            build = DockerBuild(repo, tag, self.docker_client)
+            res = self.docker_client.create_container(build, command=self._get_installed_cmd())
+            container_id = res['Id']
+            # TODO: wait till command complete??
+            installed = self.docker_client.logs(container_id)
+        return self._process_get_installed(installed)
+
+    def _process_get_installed(self, res):
+        return res
+
+    def _get_installed_cmd(self):
+        os = self.OS_NAME
+        return getattr(constants.agent, '%s__GET_INSTALLED_CMD' % os)
 
     @staticmethod
     def package_manager(system):
@@ -87,15 +112,10 @@ class PackageManager(object):
         elif system == 'centos':
             return YumPackageManager
 
-    def clean_up(self):
-        for f in self.to_clean:
-            os.remove(f)
-
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.clean_up()
         return False
 
     def get_reload_repo_cmd(self):
@@ -128,10 +148,10 @@ class PackageManager(object):
         return None, cmds
 
 
-    def delete_cached_files(self):
-        proper_path = (os.path.join(self.root, os.path.relpath(f, '/')) for f in self.CACHED_FILES)
-        for f in proper_path:
-            rm_rf(f)
+    # def delete_cached_files(self):
+    #     proper_path = (os.path.join(self.root, os.path.relpath(f, '/')) for f in self.CACHED_FILES)
+    #     for f in proper_path:
+    #         rm_rf(f)
 
     def get_dependencies(self, pkg):
         return []
@@ -162,16 +182,16 @@ class YumPackageManager(PackageManager):
 # python-urlgrabber-0:3.10-4.el7.noarch
 # yum-plugin-fastestmirror-0:1.1.31-24.el7.noarch
 
-    def _get_installed(self):
-        return subprocess.check_output('rpm -qa --root=%s --queryformat \'%s\'' % (self.root, '%{NAME}\\n'), shell=True).splitlines()
-
+    def _process_get_installed(self, res):
+        return res.splitlines()
 
     def get_dependencies(self, pkg):
-        try:
-            output = subprocess.check_output('repoquery --requires --resolve %s --qf %s' % (pkg, '%{NAME}'), shell=True).splitlines()
-        except subprocess.CalledProcessError:
+        # subprocess.check_output('repoquery --requires --resolve %s --qf %s' % (pkg, '%{NAME}'), shell=True).splitlines()
+        output = self.vm_socket.get_dependencies(pkg)
+        if output == '':
             return []
         return list(set(output))
+
 
 class DebianPackageManager(PackageManager):
     """
@@ -184,23 +204,21 @@ class DebianPackageManager(PackageManager):
     # use dpkg -r to remove packages one at a time
     # use dpkg -i to install them after downloading with apt-get download pkg_name
 
-
     CLEAN_CMD = 'apt-get clean'
     RELOAD_REPO_CMD = 'apt-get update'
     INSTALL_CMD_FMT = 'apt-get install -y %s'
     UNINSTALL_CMD_FMT = 'apt-get remove --purge -y %s'
+    OS_NAME = 'UBUNTU'
 
-    #CACHED_FILES = {'/var/cache/apt/pkgcache.bin', '/var/cache/apt/srcpkgcache.bin'}
-    def _get_installed(self):
-        return [x.split()[0] for x in subprocess.check_output('dpkg --get-selections --root=%s | grep -v deinstall' % self.root, shell=True).splitlines()]
+    def _process_get_installed(self, res):
+        return [x.split()[0] for x in res.splitlines()]
 
     def get_dependencies(self, pkg):
-        try:
-            output = subprocess.check_output('apt-cache depends %s | grep "Depends:"' % pkg, shell=True)
-        except subprocess.CalledProcessError:
+        output = self.vm_socket.get_dependencies(pkg)
+        if output == '':
             return []
         dependencies = [line.split()[1] for line in output.splitlines()]
-        return dependencies
+        return list(set(dependencies))
 
 
 class ZypperPackageManager(PackageManager):
@@ -208,17 +226,20 @@ class ZypperPackageManager(PackageManager):
     INSTALL_CMD_FMT = 'zypper install %s'
     UNINSTALL_CMD_FMT = 'zypper remove %s'
 
-    def _get_installed(self):
-        return subprocess.check_output('rpm -qa --root=%s' % self.root, shell=True).splitlines()
+    def _process_get_installed(self, res):
+        return res.splitlines()
 
 
 class MultiRootPackageManager(object):
-    def __init__(self, base_image_root, vm_root, os, delete_cached_files=True, filter_package_deps=False):
+    def __init__(self, vm_socket, os, tag, docker_client, filter_package_deps=True):
+        """
+        base_image_identifier is a string likely combining repo:tag such as ubuntu:14.04 so we can execute the command
+        that we need to in the given docker container
+        """
         cls = PackageManager.package_manager(os)
         logging.debug('Using class %s for OS; %s' % (repr(cls), os))
-        self.base_image = cls(base_image_root)
-        self.vm = cls(vm_root)
-        self.delete_cached_files = delete_cached_files
+        self.base_image = cls(image_repo_tag=(os, tag), docker_client=docker_client)
+        self.vm = cls(vm_socket=vm_socket)
         self.filter_pkg_deps = filter_package_deps
 
     def __enter__(self):
@@ -229,41 +250,18 @@ class MultiRootPackageManager(object):
         self.vm.__exit__(exc_type, exc_val, exc_tb)
         return False
 
-    def prepare_vm(self, read_only=True):
-        base_installed = set(self.base_image.get_installed())
+    def prepare_vm(self):
         vm_installed = set(self.vm.get_installed())
+        base_installed = set(self.base_image.get_installed())
 
         to_remove = base_installed - vm_installed
         to_install = vm_installed - base_installed
-
-
 
         if self.filter_pkg_deps:
             before_dep_filter = len(to_install)
             to_install = filter_non_dependencies(to_install, self.vm.get_dependencies)
             after_dep_filter = len(to_install)
             logging.debug('Filter by dependency cut down %d packages to %d' % (before_dep_filter, after_dep_filter))
-
-
-        # if not read_only:
-        #     logging.debug('%d packages to uninstall from the vm clone' % len(to_uninstall))
-        #     logging.debug('%d packages to install on the vm clone' % len(to_install))
-        #
-        #     # step 1. uninstall packages that are on VM but not on base image
-        #     self.vm.uninstall(to_uninstall)
-        #
-        #     # step 2. install packages that are on base image but not on VM
-        #     self.vm.install(to_install)
-        #
-        #     if self.delete_cached_files:
-        #         logging.debug('VM size before cache purge %dMB' % recursive_size(self.vm.root))
-        #         self.vm.delete_cached_files()
-        #         logging.debug('VM size after cache purge %dMB' % recursive_size(self.vm.root))
-        #
-        # # step 3. return commands to undo the effects
-        # cmds = self.vm._uninstall_cmds(to_install)
-        # cmds.extend(self.vm._install_cmds(to_uninstall))
-        # return cmds
 
         return self.vm.install_uninstall(to_install, to_remove, DockerBuild.path_to_sandbox_item(DockerBuild.PKG_LIST))
 

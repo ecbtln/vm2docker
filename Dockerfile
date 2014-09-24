@@ -18,8 +18,10 @@ RUN make
 WORKDIR /src/chief
 RUN make clean
 RUN make
+RUN chmod +x vm2docker.py
 
-WORKDIR /src/
+ENTRYPOINT ["./vm2docker.py"]
 
-ENV AGENT_PORT 1024
-EXPOSE 1024
+ENV DOCKER_HOST tcp://192.168.59.103:2375
+#ENV AGENT_PORT 49153
+#EXPOSE 49153

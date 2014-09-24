@@ -1,10 +1,11 @@
 __author__ = 'elubin'
+
 import logging
 import socket
 from rpc import ExitCommand, RPCCommand
-from chief.constants.agent import SEND_FILE_HEADER_FMT
-from chief.utils.utils import inheritors
-from chief.utils.ringbuffer import ringbuffer
+from constants.agent import SEND_FILE_HEADER_FMT
+from utils.utils import inheritors
+from utils.ringbuffer import ringbuffer
 import re
 import tempfile
 import os
@@ -15,7 +16,12 @@ class CommunicationLayer(object):
     A class that can call any of the prescribed RPC by referencing its command name
     """
     def __init__(self, socket_address, port):
-        self.connection = SocketWrapper(socket.create_connection((socket_address, port)))
+        try:
+            conn = socket.create_connection((socket_address, port))
+            self.connection = SocketWrapper(conn)
+        except socket.error as e:
+            raise ValueError("Could not connect to %s on port %d" % (socket_address, port))
+
         command_classes = inheritors(RPCCommand)
         # now create a dict keyed by the actual command attributes
         self.commands = {}
@@ -107,7 +113,8 @@ class SocketWrapper(object):
             # got extra data that's still sitting there.
             assert bytes_received <= bytes_read_from_buffer
 
-        return '%d bytes saved to %s' % (nbytes, target)
+        logging.info('%d bytes saved to %s' % (nbytes, target))
+        return target
 
 
 

@@ -13,18 +13,24 @@ class DockerFile(object):
         self.repo = repo
         self.tag = tag
         self.docker_cmds = []
+        self.run_cmd = None
 
     def _inheritance_line(self):
-        beg = 'FROM %s' % self.repo
-        if self.tag is not None:
-            beg += ':%s' % self.tag
-        return beg
+        return 'FROM %s' % self.format_image_name(self.repo, self.tag)
 
-    def _get_cmds(self):
-        return '\n'.join(self.docker_cmds)
+    @staticmethod
+    def format_image_name(repo, tag=None):
+        out = repo
+        if tag is not None:
+            out += ":%s" % tag
+        return out
 
     def serialize(self):
-        return "%s\n%s" % (self._inheritance_line(), self._get_cmds())
+        cmds = [self._inheritance_line()]
+        cmds.extend(self.docker_cmds)
+        if self.run_cmd is not None:
+            cmds.append('CMD %s' % self.run_cmd)
+        return '\n'.join(cmds)
 
     def add_docker_cmd(self, cmd):
         self.docker_cmds.append(cmd)
@@ -114,7 +120,6 @@ class DockerBuild(object):
 class DiffBasedDockerBuild(DockerBuild):
     CHANGES = 'changes.tar'
     DELETED = 'deleted.txt'
-
 
     def _diff_cmds(self):
         return ["ADD %s /" % self.CHANGES,

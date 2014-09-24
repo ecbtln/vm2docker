@@ -7,7 +7,7 @@ import tempfile
 import tarfile
 from utils.utils import recursive_size, generate_regexp
 from packagemanager.packagemanager import MultiRootPackageManager
-from dockerfile import DiffBasedDockerBuild, DockerBuild
+from dockerfile import DiffBasedDockerBuild, DockerBuild, DockerFile
 from include import RESULTS_LOGGER, RSYNC_OPTIONS
 
 
@@ -36,11 +36,10 @@ class LinuxInfoParser(object):
 
 
 class BaseImageGenerator(object):
-    def __init__(self, vm_root, dclient, process_packages=True, cache=False, filter_deps=False):
+    def __init__(self, vm_socket, dclient, process_packages=True, cache=False, filter_deps=False):
         self.docker_client = dclient
-        self.vm_root = os.path.join(os.path.abspath(vm_root), '')  # stupid hack to get the trailing slash
         self.process_packages = process_packages
-        self.generate_linux_info()
+        self.vm_socket = vm_socket
         self.cache = cache
         self.filter_deps = filter_deps
 
@@ -51,7 +50,7 @@ class BaseImageGenerator(object):
         self.base_image_root = os.path.join(self.temp_dir, base_image_dir, '')
         self.deleted_list = os.path.join(self.temp_dir, 'deleted.txt')
         os.makedirs(self.modified_directory)
-        logging.debug('Detected OS: %s' % self.linux_info.get('PRETTY_NAME', self.linux_info.get('DISTRIB_DESCRIPTION')))
+
         return self
 
 
@@ -59,8 +58,10 @@ class BaseImageGenerator(object):
         self.clean_up()
         return False
 
-    def generate_linux_info(self):
-        self.linux_info = LinuxInfoParser(self.vm_root).generate_os_info()
+    def generate_linux_info(self, vm_root):
+        self.linux_info = LinuxInfoParser(vm_root).generate_os_info()
+        logging.debug('Detected OS: %s' % self.linux_info.get('PRETTY_NAME', self.linux_info.get('DISTRIB_DESCRIPTION')))
+
 
     @staticmethod
     def transform_tag(repo, tag):
@@ -74,7 +75,7 @@ class BaseImageGenerator(object):
         return confirm.strip() == ''
 
     def find_base_image(self, repo, tag):
-        repo_tag = '%s:%s' % (repo, tag)
+        repo_tag = DockerFile.format_image_name(repo, tag)
         self.docker_client.pull(repo)
         candidate_image = [x for x in self.docker_client.images() if repo_tag in x['RepoTags']]
         if len(candidate_image) == 1:
@@ -82,8 +83,8 @@ class BaseImageGenerator(object):
         else:
             return None # TODO: this isn't good, need to manually generate base image with debootstrap
 
-    def start_image_and_generate_container_id(self, repo_tag):
-        res = self.docker_client.create_container(repo_tag, command='echo FAKECOMMAND')
+    def start_image_and_generate_container_id(self, repo_tag, command='echo FAKECOMMAND'):
+        res = self.docker_client.create_container(repo_tag, command=command)
         container_id = res['Id']
         logging.debug('Container ID: %s' % container_id)
         return container_id
@@ -158,9 +159,16 @@ class BaseImageGenerator(object):
         return deletions
 
     def generate(self, vm_tag, run_locally=False):
+        # get the filesystem from the socket
+        new_vm_root = os.path.join(self.temp_dir, 'vm_root', '') # stupid trailing / hack
+        logging.debug('Obtaining filesystem from socket connection')
+        tar_path = self.vm_socket.get_filesystem()
+        assert tarfile.is_tarfile(tar_path)
+        self.extract_tar(tar_path, new_vm_root)
+
+        self.generate_linux_info(new_vm_root)
 
         repo = self.linux_info.get('ID', self.linux_info.get('DISTRIB_ID')).lower()
-
 
         tag = self.linux_info.get('VERSION_ID', self.linux_info.get('DISTRIB_RELEASE'))
         tag = self.transform_tag(repo, tag)
@@ -169,18 +177,11 @@ class BaseImageGenerator(object):
         base_tar_path = self.export_container_to_tar(container_id)
         self.extract_base_image_tar(base_tar_path)
 
-        # # the package manager makes changes to the filesystem, so we are first going to clone the vm, and then
-        # # modify the vm_root path
-        new_vm_root = os.path.join(self.temp_dir, 'vm_root', '') # stupid trailing / hack
-        logging.debug('Cloning VM filesystem to be able to make changes...')
-        subprocess.check_output('rsync %s --compare-dest=%s %s %s' % (RSYNC_OPTIONS, new_vm_root, self.vm_root, new_vm_root), shell=True)
-
-
         if self.process_packages:
             logging.debug('Generating package manager commands...')
 
-            with MultiRootPackageManager(self.base_image_root, new_vm_root, repo, delete_cached_files=self.cache, filter_package_deps=self.filter_deps) as m:
-                package_file, cmds = m.prepare_vm(read_only=True)
+            with MultiRootPackageManager(self.vm_socket, repo, tag, self.docker_client, filter_package_deps=self.filter_deps) as m:
+                package_file, cmds = m.prepare_vm()
                 repo_files = m.vm.REPO_FILES
                 clean_cmd = m.vm.get_clean_cmd()
 
