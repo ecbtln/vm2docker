@@ -6,12 +6,8 @@
 
 // TODO: consider not using grep at all to limit dependencies
 // TODO: consider using a macro to be able to inline the get_installed_cmd
-char * get_installed_cmd() {
-    char *c = UBUNTU__GET_INSTALLED_CMD;
-    const int len = strlen(c) + 1;
-    char *cmd = malloc(len);
-    strncpy(cmd, c, len);
-    return cmd;
+void get_installed_cmd(char **cmd) {
+    *cmd = UBUNTU__GET_INSTALLED_CMD;
 }
 
 char * get_dependencies_cmd(char *pkg) {

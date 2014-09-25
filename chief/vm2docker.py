@@ -65,14 +65,12 @@ if __name__ == '__main__':
         DOCKER_HOST = None
 
     client = docker.Client(base_url=DOCKER_HOST)
-    vm_socket = CommunicationLayer(args.vm_ip_address, args.agent_port)
-
     tag_name = args.tag
+    with CommunicationLayer(args.vm_ip_address, args.agent_port) as vm_socket:
+        with BaseImageGenerator(vm_socket, client, process_packages=args.packages, cache=args.cache, filter_deps=args.filter_deps) as image_gen:
+            image_gen.generate(tag_name, run_locally=args.run)
 
-    with BaseImageGenerator(vm_socket, client, process_packages=args.packages, cache=args.cache, filter_deps=args.filter_deps) as image_gen:
-        image_gen.generate(tag_name, run_locally=args.run)
-
-    logging.debug('Results written to %s' % path)
+        logging.debug('Results written to %s' % path)
 
 
 

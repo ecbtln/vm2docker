@@ -24,12 +24,11 @@ class PackageManager(object):
 
     CACHED_FILES = {}
 
-    def __init__(self, vm_socket, image_repo_tag=None, docker_client=None):
+    def __init__(self, vm_socket=None, image_repo_tag=None, docker_client=None):
         assert vm_socket is not None or image_repo_tag is not None
         self.vm_socket = vm_socket
         self.image_repo_tag = image_repo_tag
         self.docker_client = docker_client
-
 
     def get_installed(self):
         installed = self._get_installed()
@@ -56,7 +55,7 @@ class PackageManager(object):
             res = self.docker_client.create_container(parent, command=self._get_installed_cmd())
             container_id = res['Id']
             self.docker_client.start(res)
-            assert self.docker_client.wait(res) == 0  # wait until command completes
+            assert self.docker_client.wait(res) == 0  # wait until command completes successfull
             installed = self.docker_client.logs(container_id)
         return self._process_get_installed(installed)
 
@@ -173,7 +172,7 @@ class DebianPackageManager(PackageManager):
     OS_NAME = 'UBUNTU'
 
     def _process_get_installed(self, res):
-        return [x.split()[0] for x in res.splitlines()]
+        return [x.split()[0] for x in res.splitlines() if 'deinstall' not in x]
 
     def get_dependencies(self, pkg):
         output = self.vm_socket.get_dependencies(pkg)

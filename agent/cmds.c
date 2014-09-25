@@ -83,9 +83,9 @@ void get_filesystem(char *compression, int clientfd) {
 }
 
 void get_installed(int clientfd) {
-    char *cmd = get_installed_cmd();
+    char *cmd;
+    get_installed_cmd(&cmd);
     exec_and_send(clientfd, cmd);
-    free(cmd);
 }
 
 void get_dependencies(char *pkg, int clientfd) {
