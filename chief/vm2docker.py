@@ -22,6 +22,9 @@ if __name__ == '__main__':
     parser.add_argument('agent_port', nargs='?', default=os.getenv("AGENT_PORT", DEFAULT_AGENT_PORT), type=int, help='The port on which the agent is running')
     parser.add_argument('--tag', default='my-vm', type=str, help='The tag to give the VM in docker')
 
+    # -z means for gzip compression
+    parser.add_argument('--tar_options', default='-z', type=str, help="The argument to send to the agent to be used when creating a tarball of the filesystem")
+
     process_pkg_group = parser.add_mutually_exclusive_group()
     process_pkg_group.add_argument('--packages', dest='packages', action='store_true')
     process_pkg_group.add_argument('--no-packages', dest='packages', action='store_false')
@@ -68,9 +71,9 @@ if __name__ == '__main__':
     tag_name = args.tag
     with CommunicationLayer(args.vm_ip_address, args.agent_port) as vm_socket:
         with BaseImageGenerator(vm_socket, client, process_packages=args.packages, cache=args.cache, filter_deps=args.filter_deps) as image_gen:
-            image_gen.generate(tag_name, run_locally=args.run)
+            image_gen.generate(tag_name, run_locally=args.run, tar_options=args.tar_options)
 
-        logging.debug('Results written to %s' % path)
+    logging.debug('Results written to %s' % path)
 
 
 

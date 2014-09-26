@@ -80,8 +80,10 @@ class DockerBuild(object):
                 last_msg = y['stream'].strip()
                 logging.debug(last_msg)
             else:
-                logging.debug(repr(y))
-
+                if 'error' in y:
+                    raise RuntimeError("Docker build failed with error: %s" % repr(y))
+                else:
+                    logging.debug(repr(y))
 
         # now extract the image ID
         m = re.match("Successfully built ([a-z0-9]{12})", last_msg)

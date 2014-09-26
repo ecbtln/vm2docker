@@ -239,3 +239,24 @@ Plan to support multiple OS's:
 Have a get_dependencies_cmd function and a get_installed_cmd function that are included in during compile time
 depending on which OS we are compiling for
 
+## September 26
+
+Seems like the socket-based tool is finally complete. Is working for Ubuntu 13.10 with optional compression for
+sending the filesystem over the wire.
+
+Compression is ESSENTIAL. Talk about this in the paper. Even a simple gzip compression cuts down the tar from > 1 GB
+to 387.6MB
+
+Now that it is functioning, we now want to consider 3 more things:
+
+1. How to detect the processes that are running on the VM to put those in the configuration file
+    - Other configuration such as VM size / memory / processor could also go here
+2. Other ways of computing the filesystem diff
+    - Block-based tools might be interesting to mess with
+    - Hash-based approach to detect if a file is there (above a certain threshold size) but was actually just moved to a
+    different path. This could potentially be a big winner
+3. A verification tool. It'd be nice to have a proof of correctness tool that compares the final built docker image
+with the original VM and makes sure that they are the same. This can be run optionally
+
+4. So far we've been focusing on size-based performance metrics. We might want to also consider time-based to see
+how long a typical conversion takes. My experience shows potentially up to 10 minutes?

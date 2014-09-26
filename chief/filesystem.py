@@ -158,11 +158,11 @@ class BaseImageGenerator(object):
         logging.getLogger(RESULTS_LOGGER).info('Diff between parent and child contains:\n%d modifications and additions, %d deletions' % (len(deletions_and_modifications), len(deletions)))
         return deletions
 
-    def generate(self, vm_tag, run_locally=False):
+    def generate(self, vm_tag, run_locally=False, tar_options='-z'):
         # get the filesystem from the socket
         new_vm_root = os.path.join(self.temp_dir, 'vm_root', '') # stupid trailing / hack
         logging.debug('Obtaining filesystem from socket connection')
-        tar_path = self.vm_socket.get_filesystem()
+        tar_path = self.vm_socket.get_filesystem(tar_options)
         assert tarfile.is_tarfile(tar_path)
         self.extract_tar(tar_path, new_vm_root)
 
@@ -222,14 +222,13 @@ class BaseImageGenerator(object):
 
         logging.debug('Generating filesystem diff...')
         self.generate_diff(self.base_image_root, new_vm_root)
-        exclude = {'\.dockerinit', 'dev.*'}
+        exclude = {'\.dockerinit', 'dev.*', 'sys.*', 'proc.*'}
         regexp = generate_regexp(exclude)
         with open(self.deleted_list, 'w') as text_file:
             # prepend a '/' to every path, we want these to be absolute paths on the new host
             text_file.write('\n'.join('/' + x for x in self.generate_deletions(self.base_image_root, new_vm_root) if not regexp.match(x)))
         build = self.create_docker_image(repo, tag)
         logging.debug('Docker build is now located at: %s' % build.dir)
-        self.generate_statistics(new_vm_root, self.base_image_root)
         # now build it
         self.build_and_push_to_registry(build, vm_tag, run_locally)
         # now push it to the registry (local for now)
@@ -264,13 +263,12 @@ class BaseImageGenerator(object):
         # delete the temporary directory
         #shutil.rmtree(self.temp_dir)
         pass
-
-    def generate_statistics(self, new_vm_root, base_image_root, units='MB'):
-        vm_size = recursive_size(self.vm_root)
-        thinned_vm_size = recursive_size(new_vm_root)
-        base_image_size = recursive_size(base_image_root)
-        diff_size = recursive_size(self.modified_directory)
-        logging.getLogger(RESULTS_LOGGER).info('VM size: %sMB, Thin VM size: %sMB, Base image size: %sMB, Diff: %sMB', vm_size, thinned_vm_size, base_image_size, diff_size)
+    #
+    # def generate_statistics(self, new_vm_root, base_image_root):
+    #     thinned_vm_size = recursive_size(new_vm_root)
+    #     base_image_size = recursive_size(base_image_root)
+    #     diff_size = recursive_size(self.modified_directory)
+    #     logging.getLogger(RESULTS_LOGGER).info('VM size: %sMB, Thin VM size: %sMB, Base image size: %sMB, Diff: %sMB', thinned_vm_size, base_image_size, diff_size)
 
 
 # TODO: make a verify tool that builds the docker file, exports the image, and then does a diff on the resulting filesystem compared to the original VM

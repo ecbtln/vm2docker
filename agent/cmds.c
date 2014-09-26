@@ -22,6 +22,8 @@
 void send_msg(int clientfd, char *msg);
 void exec_and_send(int clientfd, char *cmd);
 
+// TODO: this is very time sensitive. Consider sending keep alive messages to the host while the tar is generated so that the host doesn't time out waiting for the msg
+// This can be combined with a progress-bar of sorts for sending the tar over the wire. 1GB takes a lot of time!
 void get_filesystem(char *compression, int clientfd) {
     // http://man7.org/linux/man-pages/man2/sendfile.2.html
     // allow the caller to specify any other arguments to the char command (used for compression)
@@ -30,8 +32,9 @@ void get_filesystem(char *compression, int clientfd) {
 
 
     char *filename = FILESYSTEM_NAME;
+    // remove the tar if it already exists
+    remove(filename); // this should work. if it doesn't exist that's fine it will silently fail
     // 1: tar up the filesystem
-
     char *cmd = "tar -C / --exclude=sys --exclude=proc -c . %s -f %s";
 
     int cmd_length = strlen(cmd) + strlen(filename);
@@ -80,6 +83,7 @@ void get_filesystem(char *compression, int clientfd) {
     int n_sent = sendfile(clientfd, fd, NULL, nbytes);
     printf("Sent %d/%zd bytes successfully\n", n_sent, nbytes);
     close(fd);
+    remove(filename);
 }
 
 void get_installed(int clientfd) {

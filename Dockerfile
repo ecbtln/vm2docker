@@ -12,9 +12,9 @@ RUN apt-get install -y gdb # (for debugging)
 ADD . /src/
 
 # build products
-WORKDIR /src/agent
-RUN make clean
-RUN make
+#WORKDIR /src/agent
+#RUN make clean
+#RUN make
 
 WORKDIR /src/chief
 RUN make clean
