@@ -8,12 +8,22 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <unistd.h>
+#include <sys/types.h>
+
 #include "cmds.h"
 
 void process_client(int clientfd, struct sockaddr_in * client_addr);
 bool process_cmd(char *cmd, int clientfd);
 
-int main(int argc, char *argv[]) {   
+int main(int argc, char *argv[]) {
+    // verify that user is running as root
+    uid_t uid=getuid(), euid=geteuid();
+    if (euid != 0 && uid != 0) {
+        printf("The agent must be run as root. Please try again\n");
+        exit(errno);
+    }
+
 	int sockfd;
 	struct sockaddr_in self;
 
@@ -25,7 +35,12 @@ int main(int argc, char *argv[]) {
 
 	memset(&self, 0, sizeof(self));
 	self.sin_family = AF_INET;
-	char *port_str = getenv("AGENT_PORT");
+	char *port_str;
+	if (argc == 2) {
+	    port_str = argv[1];
+	} else {
+	    port_str = getenv("AGENT_PORT");
+	}
 	int port;
 	if (port_str == NULL) {
 	    port = DEFAULT_AGENT_PORT;
