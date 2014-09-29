@@ -5,7 +5,10 @@ import logging
 import json
 import re
 import tarfile
-
+import subprocess
+import shutil
+from include import RESULTS_LOGGER
+from utils.utils import rm_rf
 
 class DockerFile(object):
 
@@ -46,7 +49,7 @@ class DockerFile(object):
 
 
 class DockerBuild(object):
-    SANDBOX_DIR = '/sbx/' # TODO: make this dynamic/randomized
+    SANDBOX_DIR = '/sbx/'  # TODO: make this dynamic/randomized
     PKG_LIST = 'packages.txt'
     REPO_INFO = 'repos.tar'
 
@@ -57,6 +60,13 @@ class DockerBuild(object):
 
     def add_file(self, path_to_file):
         self.df.add_docker_cmd('ADD %s %s' % (path_to_file, self.SANDBOX_DIR))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        rm_rf(self.dir)
+        return False
 
     @classmethod
     def path_to_sandbox_item(cls, rel_path):
@@ -117,19 +127,46 @@ class DockerBuild(object):
         self.df.add_docker_cmd('ADD %s /' % target_name)
 
 
-
-
 class DiffBasedDockerBuild(DockerBuild):
-    CHANGES = 'changes.tar'
-    DELETED = 'deleted.txt'
+    def __init__(self, diff_tool, *args, **kwargs):
+        """
+        diff_tool is an instance of FileSystemDiffTool class
+        """
+        self.diff_tool = diff_tool
+        self.added_diff_cmds = False
+        super(DiffBasedDockerBuild, self).__init__(*args, **kwargs)
 
     def _diff_cmds(self):
-        return ["ADD %s /" % self.CHANGES,
-                "ADD %s %s" % (self.DELETED, self.SANDBOX_DIR),
-                "RUN xargs -d '\\n' -a %s rm -r" % self.path_to_sandbox_item(self.DELETED)]
+        cmds = []
+
+        for fn, d in self.diff_tool.filesystem_diff_files().items():
+            # tar each one up, put it in the docker directory, and then return a command to add it to the image
+            target_fn = '%s.tar' % fn
+            target_tar = os.path.join(self.dir, target_fn)
+            c = 'tar -C %s -c . -f %s' % (d, target_tar)
+            logging.debug(c)
+            subprocess.check_output(c, shell=True)
+            logging.getLogger(RESULTS_LOGGER).info('Size of %s: %.2f %s', target_tar, os.path.getsize(target_tar) / (1024.0 * 1024.0), 'MB')
+            cmds.append("ADD %s /" % target_fn)
+
+        for fn, target in self.diff_tool.helper_files().items():
+            assert os.path.isfile(target)
+
+            # copy it over to the docker directory
+            shutil.copyfile(target, os.path.join(self.dir, fn))
+            # append the command to add it to the build
+            cmds.append("ADD %s %s" % (fn, self.SANDBOX_DIR))
+
+        # ask the diff tool for any commands to process the files
+        # we pass in the root of the sandbox directory, so that the diff tool is responsible for resolving the abs path
+        for c in self.diff_tool.post_processing_cmds(self.SANDBOX_DIR):
+            cmds.append("RUN %s" % c)
+
+        return cmds
 
     def serialize(self):
-        self.df.add_docker_cmds(self._diff_cmds())
+        if not self.added_diff_cmds:
+            self.df.add_docker_cmds(self._diff_cmds())
         super(DiffBasedDockerBuild, self).serialize()
 
 

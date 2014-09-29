@@ -5,10 +5,11 @@ import logging
 import subprocess
 import tempfile
 import tarfile
-from utils.utils import recursive_size, generate_regexp
 from packagemanager.packagemanager import MultiRootPackageManager
 from dockerfile import DiffBasedDockerBuild, DockerBuild, DockerFile
-from include import RESULTS_LOGGER, RSYNC_OPTIONS
+from include import RESULTS_LOGGER
+from utils.utils import rm_rf
+from diff import RSyncDiffTool
 
 
 class LinuxInfoParser(object):
@@ -45,14 +46,9 @@ class BaseImageGenerator(object):
 
     def __enter__(self):
         self.temp_dir = tempfile.mkdtemp()
-        self.modified_directory = os.path.join(self.temp_dir, 'modded')
         base_image_dir = 'root_fs'
         self.base_image_root = os.path.join(self.temp_dir, base_image_dir, '')
-        self.deleted_list = os.path.join(self.temp_dir, 'deleted.txt')
-        os.makedirs(self.modified_directory)
-
         return self
-
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.clean_up()
@@ -120,45 +116,7 @@ class BaseImageGenerator(object):
     def extract_base_image_tar(self, base_tar_path):
         self.extract_tar(base_tar_path, self.base_image_root)
 
-    def generate_diff(self, base_image_root, vm_root):
-        cmd = 'rsync %s --compare-dest=%s %s %s' % (RSYNC_OPTIONS, base_image_root, vm_root, self.modified_directory)
-        logging.debug(cmd)
-        subprocess.check_output(cmd, shell=True)
-
-    def _generate_deletions_and_modified(self, base_image_root, vm_root):
-        deleted_dir = os.path.join(self.temp_dir, 'deleted')
-        os.makedirs(deleted_dir) # rlptgoDxH
-        cmd = 'rsync %s --compare-dest=%s %s %s' % (RSYNC_OPTIONS, vm_root, base_image_root, deleted_dir)
-        logging.debug(cmd)
-        subprocess.check_output(cmd, shell=True)
-        return self._list_all_files_and_folders(deleted_dir)
-
-    @staticmethod
-    def _list_all_files_and_folders(dir):
-        system_list = list()
-        for dirpath, dirnames, filenames in os.walk(dir):
-            if dirpath != dir:
-                relative_dir = os.path.relpath(dirpath, dir)
-            else:
-                relative_dir = ''
-            system_list.extend([os.path.join(relative_dir, x) for x in filenames])
-            system_list.extend([os.path.join(relative_dir, x) for x in dirnames])
-        # now reverse the order, so that files get deleted before their parents
-        system_list.reverse()
-        return system_list
-
-    def generate_deletions(self, base_image_root, vm_root):
-        deletions_and_modifications = self._generate_deletions_and_modified(base_image_root, vm_root)
-        deletions = list()
-        for candidate in deletions_and_modifications:
-            to_check = os.path.join(self.modified_directory, candidate)
-            if not os.path.lexists(to_check):
-                #logging.debug('%s: file does not exist' % to_check)
-                deletions.append(candidate)
-        logging.getLogger(RESULTS_LOGGER).info('Diff between parent and child contains:\n%d modifications and additions, %d deletions' % (len(deletions_and_modifications), len(deletions)))
-        return deletions
-
-    def generate(self, vm_tag, run_locally=False, tar_options='-z'):
+    def generate(self, vm_tag, run_locally=False, tar_options='-z', diff_tool=RSyncDiffTool):
         # get the filesystem from the socket
         new_vm_root = os.path.join(self.temp_dir, 'vm_root', '') # stupid trailing / hack
         logging.debug('Obtaining filesystem from socket connection')
@@ -186,22 +144,22 @@ class BaseImageGenerator(object):
                 clean_cmd = m.vm.get_clean_cmd()
 
             if len(cmds) > 0:
-                db = DockerBuild(repo, tag, self.docker_client)
+                with DockerBuild(repo, tag, self.docker_client) as db:
 
-                if repo_files is not None and len(repo_files) > 0:
-                    db.archive(repo_files, new_vm_root, DockerBuild.REPO_INFO)
+                    if repo_files is not None and len(repo_files) > 0:
+                        db.archive(repo_files, new_vm_root, DockerBuild.REPO_INFO)
 
-                if package_file is not None:
-                    package_list_path = os.path.join(db.dir, DockerBuild.PKG_LIST)
-                    with open(package_list_path, 'w') as f:
-                        f.write(package_file)
+                    if package_file is not None:
+                        package_list_path = os.path.join(db.dir, DockerBuild.PKG_LIST)
+                        with open(package_list_path, 'w') as f:
+                            f.write(package_file)
 
-                    db.add_file(DockerBuild.PKG_LIST)
+                        db.add_file(DockerBuild.PKG_LIST)
 
-                db.df.add_build_cmds(cmds)
-                db.df.add_build_cmd(clean_cmd)
-                db.serialize()
-                id = db.build('packages-only')
+                    db.df.add_build_cmds(cmds)
+                    db.df.add_build_cmd(clean_cmd)
+                    db.serialize()
+                    id = db.build('packages-only')
 
                 if id is None:
                     raise ValueError("One or more of the commands failed to execute successfully")
@@ -210,59 +168,28 @@ class BaseImageGenerator(object):
                 tar_name = 'packages.tar'
                 abs_tar_path = self.export_container_to_tar(container_id, tar_name)
 
-
-
-
                 self.base_image_root = self.extract_tar(abs_tar_path, 'packages_container')
                 repo = id
                 tag = None
 
-
         # TODO: trash the kernel
-
         logging.debug('Generating filesystem diff...')
-        self.generate_diff(self.base_image_root, new_vm_root)
-        exclude = {'\.dockerinit', 'dev.*', 'sys.*', 'proc.*'}
-        regexp = generate_regexp(exclude)
-        with open(self.deleted_list, 'w') as text_file:
-            # prepend a '/' to every path, we want these to be absolute paths on the new host
-            text_file.write('\n'.join('/' + x for x in self.generate_deletions(self.base_image_root, new_vm_root) if not regexp.match(x)))
-        build = self.create_docker_image(repo, tag)
-        logging.debug('Docker build is now located at: %s' % build.dir)
-        # now build it
-        self.build_and_push_to_registry(build, vm_tag, run_locally)
-        # now push it to the registry (local for now)
+        with diff_tool(self.base_image_root, new_vm_root) as diff_tool_instance:
+            diff_tool_instance.do_diff()
 
-    def create_docker_image(self, from_repo, from_tag):
-        build = DiffBasedDockerBuild(from_repo, from_tag, self.docker_client)
+            with DiffBasedDockerBuild(diff_tool_instance, repo, tag, self.docker_client) as build:
+                build.serialize()
+                logging.debug('Docker build is now located at: %s' % build.dir)
+                build.build(vm_tag)
+                logging.debug("To run the container execute the following:\n$ docker run -P %s" % vm_tag)
+                #if run:
 
-        # now tar up the modifications and into the directory
-        changes = DiffBasedDockerBuild.CHANGES
-        tar_file = os.path.join(build.dir, changes)
-        subprocess.check_output('tar -C %s -c . -f %s' % (self.modified_directory, tar_file), shell=True)
-
-        logging.getLogger(RESULTS_LOGGER).info('Size of %s: %.2f %s', tar_file, os.path.getsize(tar_file) / (1024.0 * 1024.0), 'MB')
-        # move the deleted
-        deleted = DiffBasedDockerBuild.DELETED
-        os.rename(self.deleted_list, os.path.join(build.dir, deleted))
-
-        build.serialize()
-
-        return build
-
-    def build_and_push_to_registry(self, d_build, tag, run=False):
-        d_build.build(tag)
-
-        logging.debug("To run the container execute the following:\n$ docker run -P %s" % tag)
-        #if run:
-
-            #res = self.docker_client.create_container(tag)
-            #logging.debug("Kickstarted Docker image with container ID: %s" % res)
+                    #res = self.docker_client.create_container(tag)
+                    #logging.debug("Kickstarted Docker image with container ID: %s" % res)
 
     def clean_up(self):
         # delete the temporary directory
-        #shutil.rmtree(self.temp_dir)
-        pass
+        rm_rf(self.temp_dir)
     #
     # def generate_statistics(self, new_vm_root, base_image_root):
     #     thinned_vm_size = recursive_size(new_vm_root)
@@ -271,4 +198,6 @@ class BaseImageGenerator(object):
     #     logging.getLogger(RESULTS_LOGGER).info('VM size: %sMB, Thin VM size: %sMB, Base image size: %sMB, Diff: %sMB', thinned_vm_size, base_image_size, diff_size)
 
 
-# TODO: make a verify tool that builds the docker file, exports the image, and then does a diff on the resulting filesystem compared to the original VM
+
+
+#TODO: make a verify tool that builds the docker file, exports the image, and then does a diff on the resulting filesystem compared to the original VM

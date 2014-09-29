@@ -2,7 +2,15 @@ __author__ = 'elubin'
 import os
 import re
 import shutil
+import importlib
 
+
+def class_for_name(module_name, class_name):
+    # load the module, will raise ImportError if module cannot be loaded
+    m = importlib.import_module(module_name)
+    # get the class, will raise AttributeError if class cannot be found
+    c = getattr(m, class_name)
+    return c
 
 def recursive_size(path, divisor=1024*1024):
     sizeof = os.path.getsize
@@ -18,6 +26,19 @@ def recursive_size(path, divisor=1024*1024):
     else:
         return sizeof(path) / divisor
 
+
+def list_all_files_and_folders(d):
+    system_list = list()
+    for dirpath, dirnames, filenames in os.walk(d):
+        if dirpath != d:
+            relative_dir = os.path.relpath(dirpath, d)
+        else:
+            relative_dir = ''
+        system_list.extend([os.path.join(relative_dir, x) for x in filenames])
+        system_list.extend([os.path.join(relative_dir, x) for x in dirnames])
+    # now reverse the order, so that files get deleted before their parents
+    system_list.reverse()
+    return system_list
 
 def generate_regexp(iterable):
     options = '|'.join(iterable)

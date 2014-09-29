@@ -11,10 +11,11 @@ import docker
 from filesystem import BaseImageGenerator
 from include import RESULTS_LOGGER
 from constants.agent import DEFAULT_AGENT_PORT
+from utils.utils import class_for_name
+import diff
 from agent_rpc.com_layer import CommunicationLayer
 
 if __name__ == '__main__':
-    # TODO: add argument for filesystem tar compresssion
 
     parser = argparse.ArgumentParser(description='An automated command-line tool to convert virtual machines to layered docker images')
     parser.add_argument('vm_ip_address', help='The IP address of the virtual machine')
@@ -23,7 +24,12 @@ if __name__ == '__main__':
     parser.add_argument('--tag', default='my-vm', type=str, help='The tag to give the VM in docker')
 
     # -z means for gzip compression
-    parser.add_argument('--tar_options', default='-z', type=str, help="The argument to send to the agent to be used when creating a tarball of the filesystem")
+    parser.add_argument('--tar-options', default='-z', type=str, help="The argument to send to the agent to be used when creating a tarball of the filesystem")
+
+    # which diff tool should we use?
+    def convert_to_cls(arg):
+        return class_for_name(diff.__name__, arg)
+    parser.add_argument('--diff-tool', default=diff.RSyncDiffTool.__name__, type=convert_to_cls, help="The name of the class for the diff tool to use for filesystem diffs")
 
     process_pkg_group = parser.add_mutually_exclusive_group()
     process_pkg_group.add_argument('--packages', dest='packages', action='store_true')
@@ -71,7 +77,7 @@ if __name__ == '__main__':
     tag_name = args.tag
     with CommunicationLayer(args.vm_ip_address, args.agent_port) as vm_socket:
         with BaseImageGenerator(vm_socket, client, process_packages=args.packages, cache=args.cache, filter_deps=args.filter_deps) as image_gen:
-            image_gen.generate(tag_name, run_locally=args.run, tar_options=args.tar_options)
+            image_gen.generate(tag_name, run_locally=args.run, tar_options=args.tar_options, diff_tool=args.diff_tool)
 
     logging.debug('Results written to %s' % path)
 

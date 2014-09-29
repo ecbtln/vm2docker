@@ -85,7 +85,6 @@ class SocketWrapper(object):
             if not found:
                 self.buffer.write_to(f)
 
-
         return str(output)
 
     def recv_file(self):

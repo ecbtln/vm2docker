@@ -260,3 +260,16 @@ with the original VM and makes sure that they are the same. This can be run opti
 
 4. So far we've been focusing on size-based performance metrics. We might want to also consider time-based to see
 how long a typical conversion takes. My experience shows potentially up to 10 minutes?
+
+
+## September 29
+
+Did a lot of work refactoring the diff process. Now the entire diff logic and cmd generation is laid out in diff.py.
+
+This makes it a lot easier to come up with other strategies for diff in the future, without wreaking havoc on filesystem.py
+
+Simple observation about differences in virtual sizes of built Docker containers, depending on if package management is enabled or not
+
+- For Ubuntu 13.10, we are looking at 1.349 GB vs 1.24 GB. This is the added weight of 109 MB, which can be attributed
+to the extra space used to keep the packages-only layer, that is eventually discarded because isn't directly used in
+the final container.
