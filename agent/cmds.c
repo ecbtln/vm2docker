@@ -22,22 +22,17 @@
 void send_msg(int clientfd, char *msg);
 void exec_and_send(int clientfd, char *cmd);
 
+
 // TODO: this is very time sensitive. Consider sending keep alive messages to the host while the tar is generated so that the host doesn't time out waiting for the msg
 // This can be combined with a progress-bar of sorts for sending the tar over the wire. 1GB takes a lot of time!
-void get_filesystem(char *compression, int clientfd) {
-    // http://man7.org/linux/man-pages/man2/sendfile.2.html
-    // allow the caller to specify any other arguments to the char command (used for compression)
-    // i'm well aware a malicious user could pass in a semicolon and execute an arbitrary command
-    // for now, we don't care
-
-
-    char *filename = FILESYSTEM_NAME;
+void send_fs(char *compression, char *target_name, char *target, char *exclude, int clientfd) {
     // remove the tar if it already exists
-    remove(filename); // this should work. if it doesn't exist that's fine it will silently fail
+    remove(target_name); // this should work. if it doesn't exist that's fine it will silently fail
     // 1: tar up the filesystem
-    char *cmd = "tar -C / --exclude=sys --exclude=proc -c . %s -f %s";
 
-    int cmd_length = strlen(cmd) + strlen(filename);
+    char *cmd = "tar -C %s %s -c . %s -f %s";
+
+    int cmd_length = strlen(cmd) + strlen(target_name) + strlen(exclude) + strlen(target);
     if (compression != NULL) {
         cmd_length += strlen(compression);
     }
@@ -46,7 +41,8 @@ void get_filesystem(char *compression, int clientfd) {
     if (compression == NULL) {
         compression = "";
     }
-    snprintf(formatted_cmd, cmd_length, cmd, compression, filename);
+
+    snprintf(formatted_cmd, cmd_length, cmd, target, exclude, compression, target_name);
 
     printf("EXEC: %s\n", formatted_cmd);
     int ret = system(formatted_cmd);
@@ -70,20 +66,28 @@ void get_filesystem(char *compression, int clientfd) {
 
 
     // now, send the file
-    int fd = open(filename, O_RDONLY);
+    int fd = open(target_name, O_RDONLY);
     struct stat st;
 
     fstat(fd, &st);
     nbytes = st.st_size;
-    // TODO: does this work for big files
-    snprintf(final_buffer, buff_size, buffer, nbytes, filename);
+    // TODO: does this work for big files??
+    snprintf(final_buffer, buff_size, buffer, nbytes, target_name);
     send_msg(clientfd, final_buffer);
 
 
     int n_sent = sendfile(clientfd, fd, NULL, nbytes);
     printf("Sent %d/%zd bytes successfully\n", n_sent, nbytes);
     close(fd);
-    remove(filename);
+    remove(target_name);
+}
+
+
+void get_filesystem(char *compression, int clientfd) {
+    char *exclude = "--exclude=sys --exclude=proc";
+    char *target = "/";
+
+    send_fs(compression, FILESYSTEM_NAME, target, exclude, clientfd);
 }
 
 void get_installed(int clientfd) {
@@ -96,6 +100,32 @@ void get_dependencies(char *pkg, int clientfd) {
     char *cmd = get_dependencies_cmd(pkg);
     exec_and_send(clientfd, cmd);
     free(cmd);
+}
+
+void get_bound_sockets(int clientfd) {
+    exec_and_send(clientfd, "netstat -lntp");
+}
+
+void get_active_processes(int clientfd) {
+    // TODO: perhaps we need to use the get_ps command to only tar up the processes of interest
+    char buffer[32]; // 32 digits is enough to store a 64 bit integer
+    snprintf(buffer, sizeof(buffer), "%d", getpid());
+    char *exclude = buffer;
+    char *target = "/proc";
+    send_fs(NULL, "proc.tar", target, exclude, clientfd);
+}
+
+void get_ps(int clientfd) {
+    exec_and_send(clientfd, "ps -a");
+}
+
+void get_pid(int clientfd) {
+    char buffer[11];
+    pid_t pid = getpid();
+    snprintf(buffer, sizeof(buffer), "%ld", (long)pid);
+
+    // send one more than the length of the string so that the null character is sent
+    send(clientfd, buffer, strlen(buffer) + 1, 0);
 }
 
 void exec_and_send(int clientfd, char *cmd) {

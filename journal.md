@@ -273,3 +273,35 @@ Simple observation about differences in virtual sizes of built Docker containers
 - For Ubuntu 13.10, we are looking at 1.349 GB vs 1.24 GB. This is the added weight of 109 MB, which can be attributed
 to the extra space used to keep the packages-only layer, that is eventually discarded because isn't directly used in
 the final container.
+
+
+## September 30
+
+Commands to get running processes:
+
+{PID} is the PID of the given process
+
+
+/proc/{PID}/cmdline - cmd used to start the process
+/proc/{PID}/cwd - current working directory of command executed (symlink)
+/proc/{PID}/exe - executable running (symlink)
+
+The question now becomes how to identify the PID's of interest.
+
+Thinking the easiest thing might be to tar up the /proc/ directory and send it over the wire to be processed on the
+other side.
+
+
+Also need to find specific ports being bound to. Two options:
+
+$ lsof -i TCP
+$ netstat -lntp
+
+for each, we'll have to grep the process ID
+
+
+also, need to get user who started each process, and then make sure to start it again under the given user's UID
+
+
+
+

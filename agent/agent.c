@@ -152,6 +152,14 @@ bool process_cmd(char *cmd, int clientfd) {
 		get_filesystem(arg, clientfd);
 	} else if(strcmp(cmd, GET_INSTALLED_CMD) == 0) {
 		get_installed(clientfd);
+	} else if(strcmp(cmd, GET_BOUND_SOCKETS_CMD) == 0) {
+	    get_bound_sockets(clientfd);
+	} else if(strcmp(cmd, GET_PS_CMD) == 0) {
+	    get_ps(clientfd);
+	} else if(strcmp(cmd, GET_PROC_CMD) == 0) {
+	    get_active_processes(clientfd);
+	} else if(strcmp(cmd, GET_PID_CMD) == 0) {
+	    get_pid(clientfd);
 	} else {
 		char * unknown = UNKNOWN_CMD;
 		int len = strlen(unknown);

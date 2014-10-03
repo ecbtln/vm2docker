@@ -22,3 +22,13 @@ Running multiple processes in one container:
 [Reference for backup/restore of packages on all major distributions]
 (http://www.nixtutor.com/linux/keep-a-backup-of-installed-packages/)
 
+
+
+Alternatives to Docker:
+
+[Flockport]
+(http://flockport.com)
+
+Some vague reference to converting images into containers:
+[StackEngine]
+(http://stackengine.com)
