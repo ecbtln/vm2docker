@@ -7,10 +7,10 @@ import tempfile
 import tarfile
 from packagemanager.packagemanager import MultiRootPackageManager
 from dockerfile import DiffBasedDockerBuild, DockerBuild, DockerFile
-from include import RESULTS_LOGGER
-from utils.utils import rm_rf
+#from include import RESULTS_LOGGER
+from utils.utils import rm_rf, extract_tar
 from diff import RSyncDiffTool
-
+from ps import ProcessManager
 
 class LinuxInfoParser(object):
     def __init__(self, path_to_root):
@@ -96,22 +96,11 @@ class BaseImageGenerator(object):
         return abs_tar_path
 
     def extract_tar(self, tar_path, target_dir, clean_up=True):
-        assert os.path.isabs(tar_path)
+
         if not os.path.isabs(target_dir):
             target_dir = os.path.join(self.temp_dir, target_dir, '')
 
-        tf = tarfile.open(tar_path, 'r')
-
-        os.makedirs(target_dir)
-
-        logging.debug('Extracting tar to %s' % target_dir)
-        tf.extractall(target_dir)
-
-        if clean_up:
-            # remove the tar
-            os.remove(tar_path)
-
-        return target_dir
+        return extract_tar(tar_path, target_dir, clean_up)
 
     def extract_base_image_tar(self, base_tar_path):
         self.extract_tar(base_tar_path, self.base_image_root)
@@ -178,6 +167,11 @@ class BaseImageGenerator(object):
             diff_tool_instance.do_diff()
 
             with DiffBasedDockerBuild(diff_tool_instance, repo, tag, self.docker_client) as build:
+                ## detect running processes here
+                p_manager = ProcessManager(self.vm_socket)
+                active_processes = p_manager.get_processes()
+                logging.debug("Found the following %d processes running on host: %s", len(active_processes), active_processes)
+                build.set_process(active_processes[0])
                 build.serialize()
                 logging.debug('Docker build is now located at: %s' % build.dir)
                 build.build(vm_tag)

@@ -3,7 +3,8 @@ import os
 import re
 import shutil
 import importlib
-
+import tarfile
+import logging
 
 def class_for_name(module_name, class_name):
     # load the module, will raise ImportError if module cannot be loaded
@@ -63,3 +64,20 @@ def inheritors(klass):
                 work.append(child)
     return subclasses
 
+
+def extract_tar(tar_path, target_dir, clean_up=True):
+    assert os.path.isabs(tar_path)
+    assert os.path.isabs(target_dir)
+    assert tarfile.is_tarfile(tar_path)
+    tf = tarfile.open(tar_path, 'r')
+
+    os.makedirs(target_dir)
+
+    logging.debug('Extracting tar to %s' % target_dir)
+    tf.extractall(target_dir)
+
+    if clean_up:
+        # remove the tar
+        os.remove(tar_path)
+
+    return target_dir

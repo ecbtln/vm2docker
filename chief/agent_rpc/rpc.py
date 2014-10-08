@@ -1,5 +1,5 @@
 __author__ = 'elubin'
-from constants.agent import EXIT_CMD, GET_DEPS_CMD, GET_FS_CMD, GET_INSTALLED_CMD, GET_BOUND_SOCKETS_CMD, GET_PID_CMD
+from constants.agent import EXIT_CMD, GET_DEPS_CMD, GET_FS_CMD, GET_INSTALLED_CMD, GET_BOUND_SOCKETS_CMD, GET_PID_CMD, GET_PROC_CMD
 
 
 class RPCCommand(object):
@@ -88,3 +88,9 @@ class GetBoundSocketsCommand(RPCCommand):
 
 class GetPIDCommand(RPCCommand):
     COMMAND = GET_PID_CMD
+
+
+class GetActiveProcesses(RPCCommand):
+    FILE_RESPONSE = True
+    COMMAND = GET_PROC_CMD
+    N_ARGS = 1

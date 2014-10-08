@@ -10,8 +10,8 @@ import shutil
 from include import RESULTS_LOGGER
 from utils.utils import rm_rf
 
-class DockerFile(object):
 
+class DockerFile(object):
     def __init__(self, repo, tag=None):
         self.repo = repo
         self.tag = tag
@@ -57,6 +57,7 @@ class DockerBuild(object):
         self.df = DockerFile(repo, tag)
         self.dir = tempfile.mkdtemp()
         self.docker_client = docker_client
+        self.process_info = None
 
     def add_file(self, path_to_file):
         self.df.add_docker_cmd('ADD %s %s' % (path_to_file, self.SANDBOX_DIR))
@@ -74,10 +75,16 @@ class DockerBuild(object):
 
     def serialize(self):
         self.df.add_build_cmd('rm -rf %s' % self.SANDBOX_DIR)
+        if self.process_info is not None:
+            cmds = dockerize_process(self.process_info)
+            self.df.add_docker_cmds(cmds)
         contents = self.df.serialize()
         logging.debug('Serialized Dockerfile:\n%s' % contents)
         with open(os.path.join(self.dir, 'Dockerfile'), 'w') as dockerfile:
             dockerfile.write(contents)
+
+    def set_process(self, p_info_object):
+        self.process_info = p_info_object
 
     def build(self, tag):
         stream = self.docker_client.build(path=self.dir, tag=tag)
@@ -167,6 +174,23 @@ class DiffBasedDockerBuild(DockerBuild):
     def serialize(self):
         if not self.added_diff_cmds:
             self.df.add_docker_cmds(self._diff_cmds())
+            self.added_diff_cmds = True
         super(DiffBasedDockerBuild, self).serialize()
 
+
+def dockerize_process(p_info):
+    # takes in an instance of a ProcessInfo object, returns a sequence of docker commands to run it
+    user = "USER %s" % p_info.uname()
+    cwd = "WORKDIR %s" % p_info.cwd()
+    cmd = "CMD %s" % p_info.cmdline()
+    ports = ["EXPOSE %s" % p for p in p_info.ports]
+    environment = p_info.environ()
+    environ_cmds = ["ENV %s %s" % (k, v) for k, v in environment.items()]
+    o = []
+    o.append(user)
+    o.extend(environ_cmds)
+    o.append(cwd)
+    o.append(cmd)
+    o.extend(ports)
+    return o
 

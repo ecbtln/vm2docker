@@ -304,4 +304,9 @@ also, need to get user who started each process, and then make sure to start it 
 
 
 
+## October 3
 
+Finished adding all commands, clocked in a conversion of Ubuntu 13.10 with packages at: 11:40
+
+## October 8
+Finished conversion of life processes (tentative). Yet to be tested exhaustively
