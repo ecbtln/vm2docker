@@ -26,3 +26,4 @@ ENTRYPOINT ["./vm2docker.py"]
 ENV DOCKER_HOST tcp://192.168.59.103:2375
 #ENV AGENT_PORT 49153
 #EXPOSE 49153
+# TODO: experiment with ONBUILD to add code after the fact

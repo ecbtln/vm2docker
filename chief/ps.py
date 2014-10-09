@@ -40,20 +40,18 @@ class ProcessManager(object):
     def get_processes(self):
         pids = self.get_pids()
         proc_dir = self.get_pid_info(pids)
-        try:
-            ports = self.find_bound_ports(pids)
+        ports = self.find_bound_ports(pids)
 
-            processes = []
-            for pid in pids:
-                proc_path = os.path.join(proc_dir, pid)
-                assert os.path.isdir(proc_path)
-                processes.append(ProcessInfo(proc_path, ports.get(pid, set())))
+        processes = []
+        for pid in pids:
+            proc_path = os.path.join(proc_dir, pid)
+            assert os.path.isdir(proc_path)
+            processes.append(ProcessInfo(proc_path, ports.get(pid, set())))
 
-            return processes
-        finally:
-            rm_rf(proc_dir)
+        return processes
 
 
+# TODO: seems to break when a copy takes place. verify that it works
 class ProcessInfo(object):
     """
     A helper class to handle parsing info from the pseudo filesystem in /proc, for a particular process

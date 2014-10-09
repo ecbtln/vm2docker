@@ -71,7 +71,8 @@ def extract_tar(tar_path, target_dir, clean_up=True):
     assert tarfile.is_tarfile(tar_path)
     tf = tarfile.open(tar_path, 'r')
 
-    os.makedirs(target_dir)
+    if not(os.path.exists(target_dir) and os.path.isdir(target_dir)):
+        os.makedirs(target_dir)
 
     logging.debug('Extracting tar to %s' % target_dir)
     tf.extractall(target_dir)

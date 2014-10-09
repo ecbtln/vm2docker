@@ -10,6 +10,7 @@
 
 #define _FILE_OFFSET_BITS 64
 #include <sys/types.h>
+#include <pwd.h>
 #include <sys/stat.h>
 
 #include "cmds.h"
@@ -21,6 +22,7 @@
 
 void send_msg(int clientfd, char *msg);
 void exec_and_send(int clientfd, char *cmd);
+void send_proc_file(int clientfd, char *path);
 
 
 // TODO: this is very time sensitive. Consider sending keep alive messages to the host while the tar is generated so that the host doesn't time out waiting for the msg
@@ -35,6 +37,9 @@ void send_fs(char *compression, char *target_name, char *target, char *exclude, 
     }
     if (compression == NULL) {
         compression = "";
+    }
+    if (exclude == NULL) {
+        exclude = "";
     }
 
     char *cmd = "tar -C %s %s -c %s %s -f %s";
@@ -107,7 +112,107 @@ void get_bound_sockets(int clientfd) {
 }
 
 void get_active_processes(char *pids, int clientfd) {
-    send_fs(NULL, "processes.tar", "/proc", NULL, pids, clientfd);
+    /*
+     our simple protocol will be to send each pid, followed by a linebreak,
+     then on each subsequent line we will do:
+     - cwd
+     - exe
+     - uid
+     - uname
+     - environ
+     - cmdline
+     */
+
+    char *cur = pids;
+    char *end = strchr(cur, '\0');
+
+    // TODO: these should somehow be made dynamic, even though we don't know their size ahead of time
+    char buff[250];
+    char path_buff[250];
+    char *proc_root = "/proc/";
+    int proc_root_size = strlen(proc_root);
+    strncpy(path_buff, "/proc/", proc_root_size + 1);
+
+    char *rest_of_path = path_buff + proc_root_size;
+
+    while (cur != NULL && cur < end) {
+        char *delim = strchr(cur, ' ');
+        char *next;
+        if (delim == NULL) {
+            next = NULL;
+        } else {
+            *delim = '\0';
+            next = delim + 1;
+        }
+
+        int cur_len = strlen(cur);
+        strncpy(rest_of_path, cur, cur_len + 1);
+        // now add in the trailing slash
+        char *path_basename = rest_of_path + cur_len + 1;
+        *(path_basename - 1) = '/';
+
+        send(clientfd, cur, cur_len, 0);
+        send(clientfd, "\n", 1, 0);
+
+        char *cwd = "cwd";
+        strncpy(path_basename, cwd, strlen(cwd) + 1);
+        ssize_t len = readlink(path_buff, buff, sizeof(buff) - 1);
+        buff[len] = '\0';
+        send(clientfd, buff, strlen(buff), 0);
+        send(clientfd, "\n", 1, 0);
+
+        char *exe = "exe";
+        strncpy(path_basename, exe, strlen(exe) + 1);
+        len = readlink(path_buff, buff, sizeof(buff) - 1);
+        buff[len] = '\0';
+        send(clientfd, buff, strlen(buff), 0);
+        send(clientfd, "\n", 1, 0);
+
+
+        *path_basename = '\0';
+        struct stat st;
+        stat(path_buff, &st);
+        uid_t uid = st.st_uid;
+        snprintf(buff, sizeof(buff), "%u\n", uid);
+        send(clientfd, buff, strlen(buff), 0);
+
+        struct passwd* p = getpwuid(uid);
+        send(clientfd, p->pw_name, strlen(p->pw_name), 0);
+        send(clientfd, "\n", 1, 0);
+
+        char *environ = "environ";
+        strncpy(path_basename, environ, strlen(environ) + 1);
+
+        send_proc_file(clientfd, path_buff);
+        send(clientfd, "\n", 1, 0);
+
+
+        char *cmdline = "cmdline";
+        strncpy(path_basename, cmdline, strlen(cmdline) + 1);
+        send_proc_file(clientfd, path_buff);
+
+        cur = next;
+    }
+}
+
+void send_proc_file(int clientfd, char *path) {
+    // since we are reading a plain text file, we're making the big assumption it doesn't have any null bytes
+    FILE *fp = fopen(path, "r");
+    char buffer[1000];
+
+    while (true) {
+         ssize_t len = fread(buffer, 1, sizeof(buffer), fp);
+         if (len < sizeof(buffer)) {
+            // end of file was reached
+               break;
+         } else {
+            // TODO: does this count include a null byte at the end of the file?
+            send(clientfd, buffer, sizeof(buffer), 1);
+         }
+    }
+
+    send(clientfd, buffer, total, 1);
+    fclose(fp);
 }
 
 void get_ps(int clientfd) {
@@ -115,7 +220,7 @@ void get_ps(int clientfd) {
     char *fmt = "%s | grep -v \"%s\"";
     int size = strlen(fmt) + 2 * strlen(cmd);
     char buffer[size];
-    sprintnf(buffer, size, fmt, cmd, cmd);
+    snprintf(buffer, size, fmt, cmd, cmd);
     exec_and_send(clientfd, buffer);
 }
 

@@ -180,7 +180,8 @@ class DiffBasedDockerBuild(DockerBuild):
 
 def dockerize_process(p_info):
     # takes in an instance of a ProcessInfo object, returns a sequence of docker commands to run it
-    user = "USER %s" % p_info.uname()
+    # TODO: get the user to username mapping from the host beforehand
+    user = "USER %s" % p_info.uid()
     cwd = "WORKDIR %s" % p_info.cwd()
     cmd = "CMD %s" % p_info.cmdline()
     ports = ["EXPOSE %s" % p for p in p_info.ports]
