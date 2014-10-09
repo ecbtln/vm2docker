@@ -195,23 +195,37 @@ void get_active_processes(char *pids, int clientfd) {
     }
 }
 
+void find_and_replace(char *haystack, size_t len, char needle, char replace) {
+    char *end = haystack + len;
+
+    while (haystack < end && (haystack = strchr(haystack, needle)) != NULL) {
+        *haystack = replace;
+        haystack++;
+    }
+
+}
+
 void send_proc_file(int clientfd, char *path) {
     // since we are reading a plain text file, we're making the big assumption it doesn't have any null bytes
     FILE *fp = fopen(path, "r");
-    char buffer[1000];
+    char buffer[100];
 
+    ssize_t len;
     while (true) {
-         ssize_t len = fread(buffer, 1, sizeof(buffer), fp);
+         len = fread(buffer, 1, sizeof(buffer), fp);
          if (len < sizeof(buffer)) {
             // end of file was reached
                break;
          } else {
+            // TODO: it looks like the proc filesystem has null bytes for spaces
+            // before sending, we want to scan a little at a time and replace null bytes with spaces
             // TODO: does this count include a null byte at the end of the file?
+            find_and_replace(buffer, sizeof(buffer), '\0', '\n');
             send(clientfd, buffer, sizeof(buffer), 1);
          }
     }
-
-    send(clientfd, buffer, total, 1);
+    find_and_replace(buffer, len, '\0', '\n');
+    send(clientfd, buffer, len, 1);
     fclose(fp);
 }
 
