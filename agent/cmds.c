@@ -146,10 +146,9 @@ void get_active_processes(char *pids, int clientfd) {
         }
 
         int cur_len = strlen(cur);
-        strncpy(rest_of_path, cur, cur_len + 1);
-        // now add in the trailing slash
+        snprintf(rest_of_path, cur_len + 2, "%s/", cur);
+        // point it to the null byte after /proc/<pid>/
         char *path_basename = rest_of_path + cur_len + 1;
-        *(path_basename - 1) = '/';
 
         send(clientfd, cur, cur_len, 0);
         send(clientfd, "\n", 1, 0);
@@ -182,7 +181,6 @@ void get_active_processes(char *pids, int clientfd) {
 
         char *environ = "environ";
         strncpy(path_basename, environ, strlen(environ) + 1);
-
         send_proc_file(clientfd, path_buff);
         send(clientfd, "\n", 1, 0);
 
@@ -198,11 +196,10 @@ void get_active_processes(char *pids, int clientfd) {
 void find_and_replace(char *haystack, size_t len, char needle, char replace) {
     char *end = haystack + len;
 
-    while (haystack < end && (haystack = strchr(haystack, needle)) != NULL) {
+    while ((haystack = memchr(haystack, needle, end - haystack)) != NULL) {
         *haystack = replace;
         haystack++;
     }
-
 }
 
 void send_proc_file(int clientfd, char *path) {
@@ -211,21 +208,13 @@ void send_proc_file(int clientfd, char *path) {
     char buffer[100];
 
     ssize_t len;
-    while (true) {
-         len = fread(buffer, 1, sizeof(buffer), fp);
-         if (len < sizeof(buffer)) {
-            // end of file was reached
-               break;
-         } else {
-            // TODO: it looks like the proc filesystem has null bytes for spaces
-            // before sending, we want to scan a little at a time and replace null bytes with spaces
-            // TODO: does this count include a null byte at the end of the file?
-            find_and_replace(buffer, sizeof(buffer), '\0', '\n');
-            send(clientfd, buffer, sizeof(buffer), 1);
-         }
-    }
-    find_and_replace(buffer, len, '\0', '\n');
-    send(clientfd, buffer, len, 1);
+
+    do {
+        len = fread(buffer, 1, sizeof(buffer), fp);
+        find_and_replace(buffer, len, '\0', '\n');
+        send(clientfd, buffer, len, 1);
+    } while (len == sizeof(buffer));
+
     fclose(fp);
 }
 

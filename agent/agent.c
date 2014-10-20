@@ -118,8 +118,8 @@ bool process_cmd(char *cmd, int clientfd) {
 	// take the new line character out of the end of the cmd
 	char *newline = strchr(cmd, '\n');
 	if (newline == NULL) {
-		perror("expected new line!");
-		exit(errno);	
+		printf("expected new line!;\n");
+		return false;
 	}
 	*newline = '\0';
 
@@ -144,7 +144,8 @@ bool process_cmd(char *cmd, int clientfd) {
 		return false;
 	} else if (strcmp(cmd, GET_DEPS_CMD) == 0) {
 	    if (arg == NULL) {
-	        perror("expected argument with get dependencies");
+	        printf("expected argument with get dependencies\n");
+	        return false;
 	    } else {
 	        get_dependencies(arg, clientfd);
 	    }
@@ -158,7 +159,8 @@ bool process_cmd(char *cmd, int clientfd) {
 	    get_ps(clientfd);
 	} else if(strcmp(cmd, GET_PROC_CMD) == 0) {
 	    if (arg == NULL) {
-	        perror("expected argument with get_active_processes");
+	        printf("expected argument with get_active_processes\n");
+	        return false;
 	    } else {
 	        get_active_processes(arg, clientfd);
 	    }
