@@ -91,7 +91,6 @@ class GetPIDCommand(RPCCommand):
 
 
 class GetActiveProcesses(RPCCommand):
-    FILE_RESPONSE = True
     COMMAND = GET_PROC_CMD
     N_ARGS = 1
 

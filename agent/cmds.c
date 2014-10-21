@@ -179,18 +179,19 @@ void get_active_processes(char *pids, int clientfd) {
         send(clientfd, p->pw_name, strlen(p->pw_name), 0);
         send(clientfd, "\n", 1, 0);
 
+        char *cmdline = "cmdline";
+        strncpy(path_basename, cmdline, strlen(cmdline) + 1);
+        send_proc_file(clientfd, path_buff);
+        send(clientfd, "\n", 1, 0);
+
         char *environ = "environ";
         strncpy(path_basename, environ, strlen(environ) + 1);
         send_proc_file(clientfd, path_buff);
         send(clientfd, "\n", 1, 0);
 
-
-        char *cmdline = "cmdline";
-        strncpy(path_basename, cmdline, strlen(cmdline) + 1);
-        send_proc_file(clientfd, path_buff);
-
         cur = next;
     }
+    send(clientfd, "\0", 1, 0);
 }
 
 void find_and_replace(char *haystack, size_t len, char needle, char replace) {

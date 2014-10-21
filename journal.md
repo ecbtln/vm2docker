@@ -309,4 +309,13 @@ also, need to get user who started each process, and then make sure to start it 
 Finished adding all commands, clocked in a conversion of Ubuntu 13.10 with packages at: 11:40
 
 ## October 8
-Finished conversion of life processes (tentative). Yet to be tested exhaustively
+Finished conversion of live processes (tentative). Yet to be tested exhaustively
+
+
+## October 21
+Finished live conversion for real and merged into master
+
+Really interesting hacker news thread here worth monitoring:
+https://news.ycombinator.com/item?id=8483102
+https://medium.com/@kelseyhightower/optimizing-docker-images-for-static-binaries-b5696e26eb07
+http://jonathan.bergknoff.com/journal/building-good-docker-images

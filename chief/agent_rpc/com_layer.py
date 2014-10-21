@@ -3,7 +3,7 @@ __author__ = 'elubin'
 import logging
 import socket
 from rpc import ExitCommand, RPCCommand
-from constants.agent import SEND_FILE_HEADER_FMT
+from constants.agent import SEND_FILE_HEADER_FMT, DEFAULT_AGENT_PORT
 from utils.utils import inheritors
 from utils.ringbuffer import ringbuffer
 import re
@@ -15,7 +15,7 @@ class CommunicationLayer(object):
     """
     A class that can call any of the prescribed RPC by referencing its command name
     """
-    def __init__(self, socket_address, port):
+    def __init__(self, socket_address, port=DEFAULT_AGENT_PORT):
         try:
             conn = socket.create_connection((socket_address, port))
             self.connection = SocketWrapper(conn)
