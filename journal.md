@@ -319,3 +319,5 @@ Really interesting hacker news thread here worth monitoring:
 https://news.ycombinator.com/item?id=8483102
 https://medium.com/@kelseyhightower/optimizing-docker-images-for-static-binaries-b5696e26eb07
 http://jonathan.bergknoff.com/journal/building-good-docker-images
+
+The idea of separating build and and runtime environments is very interesting to follow

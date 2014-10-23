@@ -171,7 +171,7 @@ class BaseImageGenerator(object):
                 p_manager = ProcessManager(self.vm_socket)
                 active_processes = p_manager.get_processes()
                 logging.debug("Found the following %d processes running on host: %s", len(active_processes), active_processes)
-                build.set_process(active_processes[0])
+                build.set_process(active_processes[1])
                 build.serialize()
                 logging.debug('Docker build is now located at: %s' % build.dir)
                 build.build(vm_tag)

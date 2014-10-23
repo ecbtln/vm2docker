@@ -1,7 +1,7 @@
 __author__ = 'elubin'
 from collections import defaultdict
 import logging
-
+import re
 
 class ProcessManager(object):
     def __init__(self, vm_socket):
@@ -42,23 +42,27 @@ class ProcessManager(object):
 
     def get_processes(self):
         pids = self.get_pids()
-        proc_info = self.get_pid_info(pids)
+        proc_info = self.get_pid_info(pids).splitlines()
         ports = self.find_bound_ports(pids)
 
-        processes = [ProcessInfo(proc_info, ports.get(pid, set())) for pid in pids]
+        processes = [ProcessInfo(pid, proc_info, ports.get(pid, set())) for pid in pids]
 
         return processes
 
 
 class ProcessInfo(object):
-    def __init__(self, to_parse, ports):
+    def __init__(self, pid, to_parse, ports):
         self.ports = ports
-        input = to_parse.splitlines()
         logging.debug(repr(input))
-        self.pid, self.cwd, self.exe, self.uid, self.user, self.cmdline = input[:6]
-        env = input[6:]
+        to_search = "PID(%s)" % pid
+        idx = to_parse.index(to_search)
+        self.pid, self.cwd, self.exe, self.uid, self.user, self.cmdline = to_parse[idx:idx + 6]
         self.env = {}
-        for l in env:
-            if len(l) > 0 and '=' in l:
+        m = re.compile("PID\(\d+\)")
+        for i in range(idx + 7, len(to_parse)):
+            l = to_parse[i]
+            if m.match(l):
+                break
+            elif len(l) > 0 and '=' in l:
                 key, value = l.split('=', 1)
                 self.env[key] = value

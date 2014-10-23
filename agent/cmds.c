@@ -150,7 +150,9 @@ void get_active_processes(char *pids, int clientfd) {
         // point it to the null byte after /proc/<pid>/
         char *path_basename = rest_of_path + cur_len + 1;
 
+        send(clientfd, "PID(", 4, 0);
         send(clientfd, cur, cur_len, 0);
+        send(clientfd, ")", 1, 0);
         send(clientfd, "\n", 1, 0);
 
         char *cwd = "cwd";
