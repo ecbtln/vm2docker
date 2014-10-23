@@ -51,6 +51,11 @@ if __name__ == '__main__':
     clean_cache_group.add_argument('--no-run', dest='run', action='store_false')
     parser.set_defaults(run=True)
 
+    debug_group = parser.add_mutually_exclusive_group()
+    debug_group.add_argument('--debug', dest='debug', action='store_true')
+    debug_group.add_argument('--no-debug', dest='debug', action='store_false')
+    debug_group.add_argument('--prod', dest='debug', action='store_false')
+    parser.set_defaults(debug=False)
     args = parser.parse_args()
 
     # configure the root logger to print all debug messages and above
@@ -76,7 +81,7 @@ if __name__ == '__main__':
     client = docker.Client(base_url=DOCKER_HOST)
     tag_name = args.tag
     with CommunicationLayer(args.vm_ip_address, args.agent_port) as vm_socket:
-        with BaseImageGenerator(vm_socket, client, process_packages=args.packages, cache=args.cache, filter_deps=args.filter_deps) as image_gen:
+        with BaseImageGenerator(vm_socket, client, process_packages=args.packages, cache=args.cache, filter_deps=args.filter_deps, debug=args.debug) as image_gen:
             image_gen.generate(tag_name, run_locally=args.run, tar_options=args.tar_options, diff_tool=args.diff_tool)
 
     logging.debug('Results written to %s' % path)

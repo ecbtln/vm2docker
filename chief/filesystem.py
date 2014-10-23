@@ -12,6 +12,7 @@ from utils.utils import rm_rf, extract_tar
 from diff import RSyncDiffTool
 from ps import ProcessManager
 
+
 class LinuxInfoParser(object):
     def __init__(self, path_to_root):
         self.path_to_root = path_to_root
@@ -37,12 +38,13 @@ class LinuxInfoParser(object):
 
 
 class BaseImageGenerator(object):
-    def __init__(self, vm_socket, dclient, process_packages=True, cache=False, filter_deps=False):
+    def __init__(self, vm_socket, dclient, process_packages=True, cache=False, filter_deps=False, debug=False):
         self.docker_client = dclient
         self.process_packages = process_packages
         self.vm_socket = vm_socket
         self.cache = cache
         self.filter_deps = filter_deps
+        self.debug = debug
 
     def __enter__(self):
         self.temp_dir = tempfile.mkdtemp()
@@ -77,7 +79,7 @@ class BaseImageGenerator(object):
         if len(candidate_image) == 1:
             return self.start_image_and_generate_container_id(repo_tag)
         else:
-            return None # TODO: this isn't good, need to manually generate base image with debootstrap
+            return None  # TODO: this isn't good, need to manually generate base image with debootstrap
 
     def start_image_and_generate_container_id(self, repo_tag, command='echo FAKECOMMAND'):
         res = self.docker_client.create_container(repo_tag, command=command)
@@ -95,12 +97,12 @@ class BaseImageGenerator(object):
         assert tarfile.is_tarfile(abs_tar_path)
         return abs_tar_path
 
-    def extract_tar(self, tar_path, target_dir, clean_up=True):
+    def extract_tar(self, tar_path, target_dir):
 
         if not os.path.isabs(target_dir):
             target_dir = os.path.join(self.temp_dir, target_dir, '')
 
-        return extract_tar(tar_path, target_dir, clean_up)
+        return extract_tar(tar_path, target_dir, clean_up=not self.debug)
 
     def extract_base_image_tar(self, base_tar_path):
         self.extract_tar(base_tar_path, self.base_image_root)
@@ -163,7 +165,7 @@ class BaseImageGenerator(object):
 
         # TODO: trash the kernel
         logging.debug('Generating filesystem diff...')
-        with diff_tool(self.base_image_root, new_vm_root) as diff_tool_instance:
+        with diff_tool(self.base_image_root, new_vm_root, debug=self.debug) as diff_tool_instance:
             diff_tool_instance.do_diff()
 
             with DiffBasedDockerBuild(diff_tool_instance, repo, tag, self.docker_client) as build:
@@ -183,7 +185,8 @@ class BaseImageGenerator(object):
 
     def clean_up(self):
         # delete the temporary directory
-        rm_rf(self.temp_dir)
+        if not self.debug:
+            rm_rf(self.temp_dir)
     #
     # def generate_statistics(self, new_vm_root, base_image_root):
     #     thinned_vm_size = recursive_size(new_vm_root)

@@ -321,3 +321,12 @@ https://medium.com/@kelseyhightower/optimizing-docker-images-for-static-binaries
 http://jonathan.bergknoff.com/journal/building-good-docker-images
 
 The idea of separating build and and runtime environments is very interesting to follow
+
+## October 23
+Exploring alternatives to rsync. It looks like rsync typically does a rolling hash, but because we are executing on the
+same host into an alternative directory, this feature (mentioned below) is obviously not used.
+http://en.wikipedia.org/wiki/Rsync#Determining_which_parts_of_a_file_have_changed
+
+Let's try instead to use rdiff instead. It actually looks like Dropbox uses rdiff, so we are on the right track.
+
+Unfortunately hard links aren't supported, and bad signatures don't raise errors, so just keep this in mind.

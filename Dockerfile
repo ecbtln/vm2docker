@@ -3,7 +3,7 @@ RUN apt-get update
 RUN apt-get install -y python python-pip python-dev swig
 RUN pip install docker-py
 RUN pip install networkx
-RUN apt-get install -y rsync curl
+RUN apt-get install -y rsync curl duplicity
 RUN curl -s https://get.docker.io/builds/Linux/x86_64/docker-latest -o /usr/local/bin/docker
 RUN chmod +x /usr/local/bin/docker
 RUN apt-get install -y gdb # (for debugging)
@@ -24,6 +24,4 @@ RUN chmod +x vm2docker.py
 ENTRYPOINT ["./vm2docker.py"]
 
 ENV DOCKER_HOST tcp://192.168.59.103:2375
-#ENV AGENT_PORT 49153
-#EXPOSE 49153
 # TODO: experiment with ONBUILD to add code after the fact

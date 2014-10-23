@@ -3,6 +3,7 @@ from collections import defaultdict
 import logging
 import re
 
+
 class ProcessManager(object):
     def __init__(self, vm_socket):
         self.vm_socket = vm_socket

@@ -16,10 +16,11 @@ class FilesystemDiffTool(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        rm_rf(self.sbx_dir)
+        if not self.debug:
+            rm_rf(self.sbx_dir)
         return False
 
-    def __init__(self, from_root, to_root, sandbox_dir=None):
+    def __init__(self, from_root, to_root, sandbox_dir=None, debug=False):
         if sandbox_dir is None:
             sandbox_dir = tempfile.mkdtemp()
         logging.debug("Using %s as sandbox directory for diffs" % sandbox_dir)
@@ -27,6 +28,7 @@ class FilesystemDiffTool(object):
         self.from_root = from_root
         self.to_root = to_root
         self.processed = False
+        self.debug = debug
 
 
     #def generate_deletions(self, from_root, to_root, ):
@@ -53,6 +55,7 @@ class FilesystemDiffTool(object):
     def do_diff(self):
         assert not self.processed
         self.processed = True
+
 
 # TODO: abstract out the notion of the root filesystem so that diffs can be computed from any subdirectory. This will be useful when creating diffs for the repository directory, for example.
 class RSyncDiffTool(FilesystemDiffTool):
