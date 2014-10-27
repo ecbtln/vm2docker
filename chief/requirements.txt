@@ -1,2 +1,2 @@
-docker-py==0.3.2
+docker-py==0.5.3
 networkx==1.9

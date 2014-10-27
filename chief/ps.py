@@ -54,7 +54,7 @@ class ProcessManager(object):
 class ProcessInfo(object):
     def __init__(self, pid, to_parse, ports):
         self.ports = ports
-        logging.debug(repr(input))
+        logging.debug(repr(to_parse))
         to_search = "PID(%s)" % pid
         idx = to_parse.index(to_search)
         self.pid, self.cwd, self.exe, self.uid, self.user, self.cmdline = to_parse[idx:idx + 6]

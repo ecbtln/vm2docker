@@ -330,3 +330,9 @@ http://en.wikipedia.org/wiki/Rsync#Determining_which_parts_of_a_file_have_change
 Let's try instead to use rdiff instead. It actually looks like Dropbox uses rdiff, so we are on the right track.
 
 Unfortunately hard links aren't supported, and bad signatures don't raise errors, so just keep this in mind.
+
+upgraded to docker 1.3 and boot2docker 1.3, which automatically enabled TLS and broke everything. YAY! Here's my workaround:
+http://blog.sequenceiq.com/blog/2014/10/17/boot2docker-tls-workaround/
+$(docker run sequenceiq/socat)
+
+Yes this works, but is abysmally slow. For tomorrow, let's come up with a progress bar indicator or something
