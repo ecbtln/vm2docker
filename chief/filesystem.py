@@ -109,7 +109,7 @@ class BaseImageGenerator(object):
     def extract_base_image_tar(self, base_tar_path):
         self.extract_tar(base_tar_path, self.base_image_root)
 
-    def generate(self, vm_tag, run_locally=False, tar_options='-z', diff_tool=RSyncDiffTool):
+    def generate(self, vm_tag, run_locally=False, tar_options='-z', diff_tool=RSyncDiffTool, processes=True):
         # get the filesystem from the socket
         new_vm_root = os.path.join(self.temp_dir, 'vm_root', '') # stupid trailing / hack
         logging.debug('Obtaining filesystem from socket connection')
@@ -172,10 +172,11 @@ class BaseImageGenerator(object):
 
             with DiffBasedDockerBuild(diff_tool_instance, repo, tag, self.docker_client) as build:
                 ## detect running processes here
-                p_manager = ProcessManager(self.vm_socket)
-                active_processes = p_manager.get_processes()
-                logging.debug("Found the following %d processes running on host: %s", len(active_processes), active_processes)
-                build.set_process(active_processes[1])
+                if processes:
+                    p_manager = ProcessManager(self.vm_socket)
+                    active_processes = p_manager.get_processes()
+                    logging.debug("Found the following %d processes running on host: %s", len(active_processes), active_processes)
+                    build.set_process(active_processes[1])
                 build.serialize()
                 logging.debug('Docker build is now located at: %s' % build.dir)
                 build.build(vm_tag)

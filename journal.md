@@ -336,3 +336,94 @@ http://blog.sequenceiq.com/blog/2014/10/17/boot2docker-tls-workaround/
 $(docker run sequenceiq/socat)
 
 Yes this works, but is abysmally slow. For tomorrow, let's come up with a progress bar indicator or something
+
+## November 4
+
+Met with adviser, time to start structuring the paper around collecting data
+
+Note, none of these capacities consist at all of compression. We save that for a separate discussion, and assume all can
+be compressed. We are focusing on the raw size.
+
+
+Data tables we want:
+
+
+
+
+Table 1 from proposal for Ubuntu
+
+#Ubuntu 12.04
+Original filesystem
+1125.77 MB
+
+Base image:
+99.13 MB
+
+no package management:
+rsync diff
+996.65 MB
+
+5645 modifications + additions (942.88 MB of additions)
+
+116 deletions (0.216 MB of deletions)
+
+rest are modifications
+
+rdiffdir
+974.35 MB
+
+
+205 ---> 67 packages culled
+including package management:
+
+packages installed total 185MB
+
+new "base" including packages is 326.41 MB
+
+
+rsync
+902.15 MB
+
+12306 modificaitons + additions (773.603 MB of additions)
+312 deletions (29.642 MB of deletion)
+
+rest are modifications
+
+rdiffdir
+810.94 MB
+
+
+
+
+
+some conclusions: take a look at the reduction in diff size after installing packages. clearly the total size increases, but the diff decreases
+indicating some value of the layering
+
+
+Another similar table for CentOS
+
+Another table for one other OS, TBD
+
+Redo package management numbers with new approach
+
+Then redo all numbers with rdiffdir instead of rsync
+
+semi or official
+maybe busybux
+debian?
+fedora?
+Mageia?
+
+very unofficial
+Gentoo also?
+archlinux
+
+
+Conversion times: (how long each component of the conversion takes, maybe a pie chart or something)
+
+Quantify the tradeoff between increasing total virtual size of container, and what quantity of containers on a single host are needed
+to make up for this temporary increase (consider both of the same and different containers)
+
+
+package dependency filtering
+

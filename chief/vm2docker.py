@@ -56,6 +56,12 @@ if __name__ == '__main__':
     debug_group.add_argument('--no-debug', dest='debug', action='store_false')
     debug_group.add_argument('--prod', dest='debug', action='store_false')
     parser.set_defaults(debug=False)
+
+    live_processes = parser.add_mutually_exclusive_group()
+    live_processes.add_argument('--include-processes', dest='processes', action='store_true')
+    live_processes.add_argument('--no-processes', dest='processes', action='store_false')
+    parser.set_defaults(processes=True)
+
     args = parser.parse_args()
 
     # configure the root logger to print all debug messages and above
@@ -82,7 +88,7 @@ if __name__ == '__main__':
     tag_name = args.tag
     with CommunicationLayer(args.vm_ip_address, args.agent_port) as vm_socket:
         with BaseImageGenerator(vm_socket, client, process_packages=args.packages, cache=args.cache, filter_deps=args.filter_deps, debug=args.debug) as image_gen:
-            image_gen.generate(tag_name, run_locally=args.run, tar_options=args.tar_options, diff_tool=args.diff_tool)
+            image_gen.generate(tag_name, run_locally=args.run, tar_options=args.tar_options, diff_tool=args.diff_tool, processes=args.processes)
 
     logging.debug('Results written to %s' % path)
 

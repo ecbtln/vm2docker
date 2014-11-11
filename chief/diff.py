@@ -30,6 +30,8 @@ class FilesystemDiffTool(object):
         self.processed = False
         self.debug = debug
 
+        logging.getLogger(RESULTS_LOGGER).info('From size: %s' % subprocess.check_output('du -sBK %s' % self.from_root, shell=True))
+        logging.getLogger(RESULTS_LOGGER).info('To size: %s' % subprocess.check_output('du -sBK %s' % self.to_root, shell=True))
 
     #def generate_deletions(self, from_root, to_root, ):
 
@@ -73,7 +75,18 @@ class RSyncDiffTool(FilesystemDiffTool):
         to_root = os.path.join(self.to_root, '')
 
         self._generate_changes(from_root, to_root, modded_directory)
-        deletions = self._generate_deletions(from_root, to_root, modded_directory)
+        added_modified = list_all_files_and_folders(modded_directory)
+        deleted_dir = os.path.join(self.sbx_dir, 'deleted')
+        os.makedirs(deleted_dir) # rlptgoDxH
+        deletions = self._generate_deletions(from_root, to_root, modded_directory, deleted_dir)
+
+        size_of_additions = 0
+        for candidate in added_modified:
+            to_check = os.path.join(deleted_dir, candidate)
+            if not os.path.lexists(to_check):
+                size_of_additions += os.lstat(os.path.join(modded_directory, candidate)).st_size
+
+        logging.getLogger(RESULTS_LOGGER).info('Additions total %d bytes' % size_of_additions)
 
         exclude = {'\.dockerinit', 'dev.*', 'sys.*', 'proc.*'}
         regexp = generate_regexp(exclude)
@@ -87,23 +100,24 @@ class RSyncDiffTool(FilesystemDiffTool):
         logging.debug(cmd)
         subprocess.check_output(cmd, shell=True)
 
-    def _generate_deletions_and_modified(self, from_root, to_root):
-        deleted_dir = os.path.join(self.sbx_dir, 'deleted')
-        os.makedirs(deleted_dir) # rlptgoDxH
+    def _generate_deletions_and_modified(self, from_root, to_root, deleted_dir):
         cmd = 'rsync %s --compare-dest=%s %s %s' % (self.RSYNC_OPTIONS, to_root, from_root, deleted_dir)
         logging.debug(cmd)
         subprocess.check_output(cmd, shell=True)
         return list_all_files_and_folders(deleted_dir)
 
-    def _generate_deletions(self, from_root, to_root, modified_dir):
-        deletions_and_modifications = self._generate_deletions_and_modified(from_root, to_root)
+    def _generate_deletions(self, from_root, to_root, modified_dir, deleted_dir):
+        deletions_and_modifications = self._generate_deletions_and_modified(from_root, to_root, deleted_dir)
         deletions = list()
+        size_of_deletions = 0
         for candidate in deletions_and_modifications:
             to_check = os.path.join(modified_dir, candidate)
             if not os.path.lexists(to_check):
+                size_of_deletions += os.lstat(os.path.join(deleted_dir, candidate)).st_size
                 #logging.debug('%s: file does not exist' % to_check)
                 deletions.append(candidate)
         logging.getLogger(RESULTS_LOGGER).info('Diff between parent and child contains:\n%d modifications and additions, %d deletions' % (len(deletions_and_modifications), len(deletions)))
+        logging.getLogger(RESULTS_LOGGER).info('Deletions total %d bytes' % size_of_deletions)
         return deletions
 
     def helper_files(self):

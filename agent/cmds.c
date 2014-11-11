@@ -89,7 +89,7 @@ void send_fs(char *compression, char *target_name, char *target, char *exclude, 
 
 
 void get_filesystem(char *compression, int clientfd) {
-    char *exclude = "--exclude=sys --exclude=proc";
+    char *exclude = "--exclude=sys --exclude=proc --exclude=dev --exclude=home/elubin/filesystem.tar.gz";
     char *target = "/";
 
     send_fs(compression, FILESYSTEM_NAME, target, exclude, NULL, clientfd);
