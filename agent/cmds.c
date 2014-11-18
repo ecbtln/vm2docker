@@ -102,7 +102,11 @@ void get_installed(int clientfd) {
 }
 
 void get_dependencies(char *pkg, int clientfd) {
-    char *cmd = get_dependencies_cmd(pkg);
+    char *fmt;
+    get_dependencies_fmt(&fmt);
+    const int len = strlen(fmt) + 1 - 2 + strlen(pkg);
+    char *cmd = malloc(len);
+    snprintf(cmd, len, fmt, pkg);
     exec_and_send(clientfd, cmd);
     free(cmd);
 }

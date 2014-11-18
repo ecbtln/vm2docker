@@ -23,7 +23,8 @@
 
 # The sources we're building
 HEADERS = $(wildcard *.h)
-PRODUCT_SOURCES = $(filter-out agent.c, $(wildcard *.c))
+EXCLUDE = agent.c ubuntu.c
+PRODUCT_SOURCES = $(filter-out $(EXCLUDE), $(wildcard *.c))
 
 # What we're building
 PRODUCT_OBJECTS = $(PRODUCT_SOURCES:.c=.o)

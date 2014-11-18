@@ -26,5 +26,6 @@
 // that are installed directly in the base image
 // we'll establish the convention of <OS_NAME>__GET_INSTALLED_CMD as the name of the cmd
 #define UBUNTU__GET_INSTALLED_CMD "dpkg --get-selections"
+#define CENTOS__GET_INSTALLED_CMD "rpm -qa --queryformat '%{NAME}\n'"
 
 

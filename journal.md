@@ -393,12 +393,229 @@ rdiffdir
 810.94 MB
 
 
+#Ubuntu 12.04.5
+Original filesystem
+1062.71 MB
+
+Base image:
+99.13 MB
+
+no package management:
+rsync diff
+915.26 MB
+
+4081 modifications + additions (880.92 MB of additions)
+
+112 deletions (0.2135 MB of deletions)
+
+rest are modifications
+
+rdiffdir
+905.13 MB
+
+
+204 ---> 66 packages culled
+including package management:
+
+packages installed total 184MB
+
+new "base" including packages is 325.44 MB
+
+
+rsync
+769.58 MB
+
+8292 modificaitons + additions (712.31 MB of additions)
+215 deletions (29.58 MB of deletion)
+
+rest are modifications
+
+rdiffdir
+736.46 MB
+
+
+# Ubuntu 13.04
+Original filesystem
+876.36 MB
+
+Base image:
+160.41 MB
+
+no package management:
+rsync diff
+710.87 MB
+
+2356 modifications + additions (708.93 MB of additions)
+
+123 deletions (67.739 MB of deletions)
+
+rest are modifications
+
+rdiffdir
+718.24 MB
+
+
+226 ---> 129 packages culled
+including package management:
+
+packages installed total 237MB
+
+ERRRRORRR updating sources
+
+# Ubuntu 13.10
+Original filesystem
+1157.45 MB
+
+Base image:
+114.76 MB
+
+no package management:
+rsync diff
+982.38 MB
+
+2340 modifications + additions (967.727 MB of additions)
+
+122 deletions (70.78 MB of deletions)
+
+rest are modifications
+
+rdiffdir
+987.28 MB
+
+
+248 ---> 147 packages culled
+including package management:
+
+packages installed total 237MB
+
+new "base" including packages is 447.697 MB
+
+
+rsync
+767.73
+
+12021 modificaitons + additions (676.34 MB of additions)
+2067 deletions (15.10 MB of deletion)
+
+rest are modifications
+
+rdiffdir
+708.148 MB
+
+
+
+
+# Ubuntu 14.04
+Original filesystem
+1212.22 MB
+
+Base image:
+192.02 MB
+
+no package management:
+rsync diff
+1008.85 MB
+
+5657 modifications + additions (943.55 MB of additions)
+
+135 deletions (0.2572 MB of deletions)
+
+rest are modifications
+
+rdiffdir
+971.215 MB
+
+
+183 ---> 109 packages culled
+including package management:
+
+packages installed total 161MB
+
+new "base" including packages is 386.95 MB
+
+
+rsync
+894.85 MB
+
+10729 modificaitons + additions (796.51 MB of additions)
+187 deletions (23.08 MB of deletion)
+
+rest are modifications
+
+rdiffdir
+829.01 MB
+
+
+
+# Ubuntu 14.10
+
+Original filesystem
+1132.17 MB
+
+Base image:
+196.89 MB
+
+no package management:
+rsync diff
+876.35 MB
+
+4163 modifications + additions (856.60 MB of additions)
+
+144 deletions (0.2716 MB of deletions)
+
+rest are modifications
+
+rdiffdir
+872.52 MB
+
+
+245 ---> 144 packages culled
+including package management:
+
+packages installed total 229MB
+
+new "base" including packages is 468.57 MB
+
+
+rsync
+687.56 MB
+
+9958 modificaitons + additions (637.728 MB of additions)
+160 deletions (19.52 MB of deletion)
+
+rest are modifications
+
+rdiffdir
+655.02 MB
+
+
+
+#CentOS 5
+
+
+#CentOS 6
+
+
+#CentOS 7
+
+#Debian???
+
+#Fedora 20
+
+
+#Fedora 21
+
+#Mageia 3
+
+#Mageia 4
 
 
 
 some conclusions: take a look at the reduction in diff size after installing packages. clearly the total size increases, but the diff decreases
 indicating some value of the layering
 
+
+### kernel files in /usr/src are 102.33 MB and can be removed
 
 Another similar table for CentOS
 

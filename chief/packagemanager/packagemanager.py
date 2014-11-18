@@ -123,7 +123,7 @@ class YumPackageManager(PackageManager):
     CLEAN_CMD = 'yum clean all'
     INSTALL_CMD_FMT = 'yum -y install %s'
     UNINSTALL_CMD_FMT = 'yum erase %s'
-
+    OS_NAME = 'CENTOS'
     PACKAGE_BLACKLIST = {'systemd.*', 'fakesystemd.*'}
 
 # yum is protected, need to make sure to not remove anything that yum depends on
@@ -147,7 +147,6 @@ class YumPackageManager(PackageManager):
         return res.splitlines()
 
     def get_dependencies(self, pkg):
-        # subprocess.check_output('repoquery --requires --resolve %s --qf %s' % (pkg, '%{NAME}'), shell=True).splitlines()
         output = self.vm_socket.get_dependencies(pkg)
         if output == '':
             return []
