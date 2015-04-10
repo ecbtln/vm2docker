@@ -54,7 +54,7 @@ class SocketWrapper(object):
     Helper subclass that facilitates buffered reading of sockets with a specified byte-delimiter
     """
     BUFFER_SIZE = 4096
-    SOCKET_TIMEOUT = 120.0  # seems reasonable timeout to allow for long-running commands
+    SOCKET_TIMEOUT = 6000.0  # seems reasonable timeout to allow for long-running commands
 
     def __init__(self, connection, delimiter='\x00'):
         self.socket_connection = connection

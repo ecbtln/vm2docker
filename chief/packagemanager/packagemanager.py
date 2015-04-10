@@ -72,6 +72,10 @@ class PackageManager(object):
             return DebianPackageManager
         elif system == 'centos':
             return YumPackageManager
+        elif system == 'mageia':
+            return MageiaPackageManager
+        else:
+            assert False, "Unidentified OS!"
 
     def __enter__(self):
         return self
@@ -122,7 +126,7 @@ class YumPackageManager(PackageManager):
     REPO_FILES = ['/etc/yum.conf', '/etc/yum.repos.d']
     CLEAN_CMD = 'yum clean all'
     INSTALL_CMD_FMT = 'yum -y install %s'
-    UNINSTALL_CMD_FMT = 'yum erase %s'
+    UNINSTALL_CMD_FMT = 'yum -y erase %s'
     OS_NAME = 'CENTOS'
     PACKAGE_BLACKLIST = {'systemd.*', 'fakesystemd.*'}
 
@@ -147,7 +151,25 @@ class YumPackageManager(PackageManager):
         return res.splitlines()
 
     def get_dependencies(self, pkg):
-        output = self.vm_socket.get_dependencies(pkg)
+        output = self.vm_socket.get_dependencies(pkg).splitlines()
+        if output == '':
+            return []
+        return list(set(output))
+
+
+class MageiaPackageManager(PackageManager):
+    REPO_FILES = ['/etc/urpmi/mediacfg.d']
+    CLEAN_CMD = 'echo ping'
+    INSTALL_CMD_FMT = 'urpmi --auto %s'
+    UNINSTALL_CMD_FMT = 'urpme %s'
+    OS_NAME = 'MAGEIA'
+    PACKAGE_BLACKLIST = {}
+
+    def _process_get_installed(self, res):
+        return res.splitlines()
+
+    def get_dependencies(self, pkg):
+        output = self.vm_socket.get_dependencies(pkg).splitlines()
         if output == '':
             return []
         return list(set(output))

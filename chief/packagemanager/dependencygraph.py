@@ -12,6 +12,7 @@ def filter_non_dependencies(nodes, get_deps_func):
     # process the edges based on the dependency function
     for n in G:
         deps = get_deps_func(n)
+        logging.info('%s depends on %s' % (n, deps))
         for d in deps:
             if d in G:
                 G.add_edge(n, d)

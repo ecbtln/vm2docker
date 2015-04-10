@@ -88,7 +88,7 @@ class RSyncDiffTool(FilesystemDiffTool):
 
         logging.getLogger(RESULTS_LOGGER).info('Additions total %d bytes' % size_of_additions)
 
-        exclude = {'\.dockerinit', 'dev.*', 'sys.*', 'proc.*'}
+        exclude = {'\.dockerinit', 'dev.*', 'sys.*', 'proc.*', 'etc/hostname'}
         regexp = generate_regexp(exclude)
         deleted_list_name = os.path.join(self.sbx_dir, self.DELETED_LIST_NAME)
         with open(deleted_list_name, 'w') as text_file:

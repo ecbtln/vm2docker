@@ -588,17 +588,91 @@ rest are modifications
 rdiffdir
 655.02 MB
 
+Special exceptions for CentOS
 
+1. I use the repoquery command, but thats not installed by default we need to do a yum install yum-utils first
+2. netstat apparently is not installed by default
+3. firewall issues: http://stackoverflow.com/questions/24729024/centos-7-open-firewall-port
 
 #CentOS 5
+From size: 507888K	/tmp/tmperamm6/root_fs/
 
+To size: 2604820K	/tmp/tmperamm6/vm_root/
+Diff between parent and child contains:
+12272 modifications and additions, 4758 deletions
+Deletions total 2034820 bytes
+Additions total 2148584251 bytes
+Size of /tmp/tmp6C2aIa/modded.tar: 2190.02 MB
+
+rdiffdir
+2138.70 MB
 
 #CentOS 6
+http://wiki.centos.org/HowTos/Network/IPTables
+From size: 241804K	/tmp/tmpLDeBk5/root_fs/
+
+To size: 692196K	/tmp/tmpLDeBk5/vm_root/
+
+Diff between parent and child contains:
+9704 modifications and additions, 3864 deletions
+Deletions total 3157967 bytes
+Additions total 359666480 bytes
+Size of /tmp/tmpQ7br1y/modded.tar: 478.06 MB
+
+rdiffdir
+416.72 MB
+
+78 packages --> 54
+
+242 MB packages installed
+
+From size: 535096K	/tmp/tmpu42Vh3/packages_container/
+
+To size: 692200K	/tmp/tmpu42Vh3/vm_root/
+
+Diff between parent and child contains:
+14044 modifications and additions, 6454 deletions
+Deletions total 124725628 bytes
+Additions total 208822404 bytes
+Size of /tmp/tmpSuCbB2/modded.tar: 381.88 MB
+
+rdiffdir
+269.42MB
 
 
-#CentOS 7
+#CentOS 7 (minimal)
 
-#Debian???
+From size: 248972K	/tmp/tmpXLTUx4/root_fs/
+
+To size: 902876K	/tmp/tmpXLTUx4/vm_root/
+
+Diff between parent and child contains:
+6879 modifications and additions, 294 deletions
+Deletions total 1287663 bytes
+Additions total 555414354 bytes
+Size of /tmp/tmpvCb4qC/modded.tar: 704.10 MB
+
+rdiff
+621.71 MB
+
+
+packages:
+
+165 ---> 67
+packages installed total 389MB
+
+From size: 676068K	/tmp/tmpnNqRjh/packages_container/
+
+To size: 902880K	/tmp/tmpnNqRjh/vm_root/
+
+Diff between parent and child contains:
+14579 modifications and additions, 3764 deletions
+Deletions total 125321236 bytes
+Additions total 280970580 bytes
+Size of /tmp/tmpTkPzFE/modded.tar: 544.55 MB
+
+rdiff
+370.94 MB
 
 #Fedora 20
 
@@ -606,14 +680,57 @@ rdiffdir
 #Fedora 21
 
 #Mageia 3
+root@bb5cb3c4f313:/src/chief# cat /tmp/vm2docker__1416360337OAe0Jt.txt
+From size: 164292K	/tmp/tmpHG5Udm/root_fs/
+
+To size: 756156K	/tmp/tmpHG5Udm/vm_root/
+
+Diff between parent and child contains:
+3681 modifications and additions, 105 deletions
+Deletions total 7910849 bytes
+Additions total 545874604 bytes
+Size of /tmp/tmph61W0L/modded.tar: 595.09 MB
+
+
+rdiffdir
+580.95 MB
+
+
+packages:
+
+311 --> 46
+
+root@ad0ac494a159:/src/chief# cat /tmp/vm2docker__1416368667aMoe5z.txt
+From size: 721536K	/tmp/tmpTKvb6z/packages_container/
+
+To size: 758140K	/tmp/tmpTKvb6z/vm_root/
+
+Diff between parent and child contains:
+14754 modifications and additions, 2917 deletions
+Deletions total 319521459 bytes
+Additions total 322839865 bytes
+Size of /tmp/tmpU5t3cX/modded.tar: 535.86 MB
+
+rdiffdir
+417.74MB
+
 
 #Mageia 4
+From size: 178280K	/tmp/tmpZ0QI3_/root_fs/
 
+To size: 2875760K	/tmp/tmpZ0QI3_/vm_root/
 
+Diff between parent and child contains:
+3343 modifications and additions, 69 deletions
+Deletions total 5638077 bytes
+Additions total 2605438592 bytes
+Size of /tmp/tmpaKINCq/modded.tar: 2575.37 MB
 
 some conclusions: take a look at the reduction in diff size after installing packages. clearly the total size increases, but the diff decreases
 indicating some value of the layering
 
+rdiffdir
+2613.04 MB
 
 ### kernel files in /usr/src are 102.33 MB and can be removed
 

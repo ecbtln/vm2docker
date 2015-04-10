@@ -5,6 +5,7 @@ import logging
 import subprocess
 import tempfile
 import tarfile
+import re
 from packagemanager.packagemanager import MultiRootPackageManager
 from dockerfile import DiffBasedDockerBuild, DockerBuild, DockerFile
 #from include import RESULTS_LOGGER
@@ -19,16 +20,24 @@ class LinuxInfoParser(object):
 
     def _parse_os_info(self, file_paths):
         out = {}
+        suspects = ['Mageia', 'CentOS']
+        match = re.compile('(%s) (Linux )?release ([\d]+).*' % '|'.join(suspects))
         for path in file_paths:
             with open(path, 'r') as f:
                 input = f.read()
                 for line in input.splitlines():
                     if '=' in line:
                         key, value = line.split('=', 1)
-                        if value[0] == '"' and value[-1] == '"':
-                            out[key] = value[1:-1]
-                        else:
-                            out[key] = value
+                        if len(value) > 0:
+                            if value[0] == '"' and value[-1] == '"':
+                                out[key] = value[1:-1]
+                            else:
+                                out[key] = value
+                    elif match.match(line):
+                        m = match.match(line)
+                        out['ID'] = m.group(1).lower()
+                        out['VERSION_ID'] = m.group(3)
+
         return out
 
     def generate_os_info(self):
@@ -119,6 +128,7 @@ class BaseImageGenerator(object):
 
         self.generate_linux_info(new_vm_root)
 
+        logging.debug('Version Info: %s' % repr(self.linux_info))
         repo = self.linux_info.get('ID', self.linux_info.get('DISTRIB_ID')).lower()
 
         tag = self.linux_info.get('VERSION_ID', self.linux_info.get('DISTRIB_RELEASE'))

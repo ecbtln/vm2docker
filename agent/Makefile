@@ -23,7 +23,7 @@
 
 # The sources we're building
 HEADERS = $(wildcard *.h)
-EXCLUDE = agent.c ubuntu.c
+EXCLUDE = agent.c ubuntu.c centos.c
 PRODUCT_SOURCES = $(filter-out $(EXCLUDE), $(wildcard *.c))
 
 # What we're building
